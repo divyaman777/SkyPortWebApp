@@ -1,0 +1,339 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Skyport Color Palette */
+  --matrix-green: #00FF41;
+  --matrix-green-dim: #00cc34;
+  --cyber-cyan: #00D4FF;
+  --cyber-cyan-dim: #00a8cc;
+  --warning-amber: #FFB300;
+  --earth-obs-orange: #FF8C00;
+  --gps-purple: #BB86FC;
+  --comm-white: #E0E0E0;
+  
+  /* Base colors */
+  --background: #0a0a0f;
+  --background-elevated: #0f0f14;
+  --foreground: #e0e0e0;
+  --foreground-dim: #808080;
+  
+  /* Panel colors */
+  --card: rgba(15, 15, 20, 0.85);
+  --card-foreground: #e0e0e0;
+  --popover: rgba(10, 10, 15, 0.95);
+  --popover-foreground: #e0e0e0;
+  
+  /* Primary - Matrix Green */
+  --primary: #00FF41;
+  --primary-foreground: #0a0a0f;
+  
+  /* Secondary - Cyber Cyan */
+  --secondary: #00D4FF;
+  --secondary-foreground: #0a0a0f;
+  
+  /* Muted */
+  --muted: #1a1a24;
+  --muted-foreground: #666666;
+  
+  /* Accent */
+  --accent: #00D4FF;
+  --accent-foreground: #0a0a0f;
+  
+  /* Destructive - Warning Amber */
+  --destructive: #FFB300;
+  --destructive-foreground: #0a0a0f;
+  
+  /* Border */
+  --border: rgba(0, 255, 65, 0.2);
+  --border-glow: rgba(0, 255, 65, 0.4);
+  --input: #1a1a24;
+  --ring: #00FF41;
+  
+  /* Charts - Satellite categories */
+  --chart-1: #FFB300;  /* Weather */
+  --chart-2: #00FF41;  /* ISS */
+  --chart-3: #00D4FF;  /* Amateur */
+  --chart-4: #FF8C00;  /* Earth Obs */
+  --chart-5: #BB86FC;  /* GPS */
+  
+  --radius: 0.25rem;
+  
+  /* Sidebar */
+  --sidebar: rgba(10, 10, 15, 0.9);
+  --sidebar-foreground: #e0e0e0;
+  --sidebar-primary: #00FF41;
+  --sidebar-primary-foreground: #0a0a0f;
+  --sidebar-accent: #00D4FF;
+  --sidebar-accent-foreground: #0a0a0f;
+  --sidebar-border: rgba(0, 255, 65, 0.2);
+  --sidebar-ring: #00FF41;
+}
+
+@theme inline {
+  --font-sans: var(--font-jetbrains), 'JetBrains Mono', 'Courier New', monospace;
+  --font-mono: var(--font-jetbrains), 'JetBrains Mono', 'Courier New', monospace;
+  --font-display: var(--font-vt323), 'VT323', 'Courier New', monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    background-color: #0a0a0f;
+  }
+}
+
+/* Scanline overlay effect */
+.scanlines {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.03) 0px,
+    rgba(0, 0, 0, 0.03) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+}
+
+/* CRT glow effect for text */
+.glow-green {
+  text-shadow: 
+    0 0 5px rgba(0, 255, 65, 0.5),
+    0 0 10px rgba(0, 255, 65, 0.3),
+    0 0 20px rgba(0, 255, 65, 0.2);
+}
+
+.glow-cyan {
+  text-shadow: 
+    0 0 5px rgba(0, 212, 255, 0.5),
+    0 0 10px rgba(0, 212, 255, 0.3),
+    0 0 20px rgba(0, 212, 255, 0.2);
+}
+
+.glow-amber {
+  text-shadow: 
+    0 0 5px rgba(255, 179, 0, 0.5),
+    0 0 10px rgba(255, 179, 0, 0.3),
+    0 0 20px rgba(255, 179, 0, 0.2);
+}
+
+/* Box glow effects */
+.box-glow-green {
+  box-shadow: 
+    0 0 5px rgba(0, 255, 65, 0.3),
+    0 0 10px rgba(0, 255, 65, 0.2),
+    inset 0 0 20px rgba(0, 255, 65, 0.05);
+}
+
+.box-glow-cyan {
+  box-shadow: 
+    0 0 5px rgba(0, 212, 255, 0.3),
+    0 0 10px rgba(0, 212, 255, 0.2),
+    inset 0 0 20px rgba(0, 212, 255, 0.05);
+}
+
+/* Blinking cursor */
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.cursor-blink {
+  animation: blink 1s step-end infinite;
+}
+
+/* Typing animation */
+@keyframes typing {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+/* Pulse glow for satellites */
+@keyframes pulse-glow {
+  0%, 100% { 
+    opacity: 1;
+    filter: brightness(1);
+  }
+  50% { 
+    opacity: 0.7;
+    filter: brightness(1.3);
+  }
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Panel scan reveal */
+@keyframes scan-reveal {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.scan-reveal {
+  animation: scan-reveal 0.3s ease-out forwards;
+}
+
+/* Matrix text scramble effect placeholder */
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.95; }
+  75% { opacity: 0.98; }
+}
+
+.terminal-flicker {
+  animation: flicker 0.1s infinite;
+}
+
+/* Number counting animation */
+@keyframes count-up {
+  from { opacity: 0.5; }
+  to { opacity: 1; }
+}
+
+.count-up {
+  animation: count-up 0.3s ease-out;
+}
+
+/* Glassmorphism panels */
+.glass-panel {
+  background: rgba(10, 10, 15, 0.85);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 255, 65, 0.2);
+}
+
+.glass-panel-cyan {
+  background: rgba(10, 10, 15, 0.85);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+/* Terminal-style scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0a0f;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 65, 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 65, 0.5);
+}
+
+/* VT323 font for data readouts */
+.font-vt323 {
+  font-family: var(--font-vt323), 'VT323', 'Courier New', monospace;
+}
+
+/* Status indicator dot */
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.active {
+  background: #00FF41;
+  box-shadow: 0 0 6px #00FF41;
+}
+
+.status-dot.warning {
+  background: #FFB300;
+  box-shadow: 0 0 6px #FFB300;
+}
+
+.status-dot.inactive {
+  background: #666666;
+}
+
+/* Star field background */
+.star-field {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: 
+    radial-gradient(1px 1px at 20px 30px, white, transparent),
+    radial-gradient(1px 1px at 40px 70px, rgba(255,255,255,0.8), transparent),
+    radial-gradient(1px 1px at 50px 160px, rgba(255,255,255,0.6), transparent),
+    radial-gradient(1px 1px at 90px 40px, white, transparent),
+    radial-gradient(1px 1px at 130px 80px, rgba(255,255,255,0.7), transparent),
+    radial-gradient(1px 1px at 160px 120px, rgba(255,255,255,0.5), transparent),
+    radial-gradient(1.5px 1.5px at 200px 50px, white, transparent),
+    radial-gradient(1px 1px at 220px 100px, rgba(255,255,255,0.6), transparent),
+    radial-gradient(1px 1px at 250px 150px, rgba(255,255,255,0.8), transparent),
+    radial-gradient(1px 1px at 280px 20px, white, transparent),
+    radial-gradient(1px 1px at 320px 90px, rgba(255,255,255,0.7), transparent),
+    radial-gradient(1.5px 1.5px at 350px 140px, white, transparent),
+    radial-gradient(1px 1px at 380px 60px, rgba(255,255,255,0.5), transparent),
+    radial-gradient(1px 1px at 420px 110px, rgba(255,255,255,0.6), transparent),
+    radial-gradient(1px 1px at 450px 30px, white, transparent),
+    radial-gradient(1px 1px at 480px 180px, rgba(255,255,255,0.8), transparent),
+    radial-gradient(1.5px 1.5px at 520px 70px, white, transparent),
+    radial-gradient(1px 1px at 550px 130px, rgba(255,255,255,0.7), transparent),
+    radial-gradient(1px 1px at 600px 45px, rgba(255,255,255,0.5), transparent);
+  background-repeat: repeat;
+  background-size: 600px 200px;
+  pointer-events: none;
+  z-index: 0;
+}
