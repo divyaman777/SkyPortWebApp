@@ -441,33 +441,28 @@ function Earth() {
 // Observer location marker on Earth with leader line like reference image
 function ObserverMarker() {
   const markerRef = useRef<THREE.Group>(null);
-  // Default observer location - centered on Atlantic view (UK/Europe area)
-  const observerLat = 51.5074; // London
+  const observerLat = 51.5074;
   const observerLon = -0.1278;
-  
+
   const position = useMemo(() => {
     return latLonToVector3(observerLat, observerLon, 2.02);
   }, []);
-  
-  // Leader line end position (above the marker)
+
   const leaderLineEnd = useMemo(() => {
     const basePos = latLonToVector3(observerLat, observerLon, 2.02);
-    // Extend outward from Earth center, then up
     const direction = basePos.clone().normalize();
     return basePos.clone().add(direction.multiplyScalar(0.4));
   }, []);
-  
+
   useFrame((state) => {
     if (markerRef.current) {
-      // Subtle pulse effect
       const scale = 1 + Math.sin(state.clock.getElapsedTime() * 2) * 0.15;
       markerRef.current.scale.setScalar(scale);
     }
   });
-  
+
   return (
     <group>
-      {/* Leader line from marker to label */}
       <Line
         points={[position, leaderLineEnd]}
         color="#FF4444"
@@ -475,18 +470,14 @@ function ObserverMarker() {
         opacity={0.8}
         transparent
       />
-      
       <group position={position}>
         <group ref={markerRef}>
-          {/* Observer dot - small red point */}
           <mesh>
             <sphereGeometry args={[0.025, 16, 16]} />
             <meshBasicMaterial color="#FF4444" />
           </mesh>
         </group>
       </group>
-      
-      {/* Label at end of leader line */}
       <group position={leaderLineEnd}>
         <Html center>
           <div className="bg-[rgba(20,10,10,0.95)] border border-[rgba(255,68,68,0.6)] px-3 py-1 rounded text-xs whitespace-nowrap shadow-lg">
