@@ -327,7 +327,7 @@ function Earth() {
       const lines = geoJSONToLines(feature.geometry, 2.01);
       lines.forEach((points, lineIndex) => {
         allLines.push({
-          key: `${feature.properties.name || featureIndex}-${lineIndex}`,
+          key: `feature-${featureIndex}-line-${lineIndex}`,
           points,
         });
       });
