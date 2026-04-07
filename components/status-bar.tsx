@@ -85,7 +85,7 @@ function MiniWorldMap() {
   );
 }
 
-export function StatusBar({ overheadCount }: StatusBarProps) {
+export function StatusBar({ overheadCount, onSupportClick }: StatusBarProps) {
   const [cursorVisible, setCursorVisible] = useState(true);
 
   useEffect(() => {
@@ -132,17 +132,15 @@ export function StatusBar({ overheadCount }: StatusBarProps) {
           <span className="text-muted-foreground hidden sm:inline">|</span>
           
           {/* Support CTA - terminal style */}
-          <a
-            href="https://buymeacoffee.com/skyport"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={onSupportClick}
             className="group flex items-center gap-1.5 px-2 py-1 glass-panel rounded hover:border-[#FFB300] transition-all duration-200"
           >
             <Rocket className="w-3 h-3 text-[#FFB300]" />
             <span className="text-muted-foreground group-hover:text-[#FFB300] transition-colors">[</span>
             <span className="text-[#FFB300] group-hover:glow-amber transition-all">FUEL_MISSION</span>
             <span className="text-muted-foreground group-hover:text-[#FFB300] transition-colors">]</span>
-          </a>
+          </button>
         </div>
       </div>
     </footer>

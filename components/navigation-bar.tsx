@@ -7,11 +7,12 @@ interface NavigationBarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onFilterToggle: () => void;
+  showSupportModal: boolean;
+  onSupportModalChange: (show: boolean) => void;
 }
 
-export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle }: NavigationBarProps) {
+export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle, showSupportModal, onSupportModalChange }: NavigationBarProps) {
   const [cursorVisible, setCursorVisible] = useState(true);
-  const [showSupportModal, setShowSupportModal] = useState(false);
   const [supportHovered, setSupportHovered] = useState(false);
 
   useEffect(() => {
@@ -69,7 +70,7 @@ export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle }: N
 
           {/* Support/Fuel button - subtle */}
           <button
-            onClick={() => setShowSupportModal(true)}
+            onClick={() => onSupportModalChange(true)}
             onMouseEnter={() => setSupportHovered(true)}
             onMouseLeave={() => setSupportHovered(false)}
             className="flex items-center gap-1.5 px-2 py-1.5 rounded text-sm transition-all duration-300 hover:bg-[rgba(255,180,0,0.1)] border border-transparent hover:border-[rgba(255,180,0,0.3)]"
@@ -90,14 +91,14 @@ export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle }: N
         {/* Backdrop */}
         <div 
           className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-          onClick={() => setShowSupportModal(false)}
+          onClick={() => onSupportModalChange(false)}
         />
         
         {/* Modal */}
         <div className="relative glass-panel border border-[rgba(0,255,65,0.3)] rounded-lg p-6 max-w-md w-full animate-in fade-in zoom-in-95 duration-200">
           {/* Close button */}
           <button
-            onClick={() => setShowSupportModal(false)}
+            onClick={() => onSupportModalChange(false)}
             className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors"
           >
             <X className="w-5 h-5" />

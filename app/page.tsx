@@ -34,6 +34,8 @@ export default function Skyport() {
     GPS_GNSS: true,
     COMMS: true,
   });
+  
+  const [showSupportModal, setShowSupportModal] = useState(false);
 
   // Initialize satellites
   useEffect(() => {
@@ -315,6 +317,8 @@ export default function Skyport() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onFilterToggle={() => setFilterPanelOpen(prev => !prev)}
+        showSupportModal={showSupportModal}
+        onSupportModalChange={setShowSupportModal}
       />
 
       {/* Main content area */}
@@ -359,7 +363,7 @@ export default function Skyport() {
       />
 
       {/* Status Bar */}
-      <StatusBar overheadCount={overheadCount} />
+      <StatusBar overheadCount={overheadCount} onSupportClick={() => setShowSupportModal(true)} />
     </div>
   );
 }
