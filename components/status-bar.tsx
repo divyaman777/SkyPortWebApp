@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Eye } from 'lucide-react';
+import { Eye, Rocket, Heart } from 'lucide-react';
 
 interface StatusBarProps {
   overheadCount: number;
@@ -120,17 +120,25 @@ export function StatusBar({ overheadCount }: StatusBarProps) {
           <MiniWorldMap />
         </div>
 
-        {/* Right - Overhead count */}
-        <div className="flex items-center gap-4 text-xs">
-          <div className="flex items-center gap-2">
+        {/* Right - Overhead count and support */}
+        <div className="flex items-center gap-3 text-xs">
+          <div className="hidden sm:flex items-center gap-2">
             <span className="text-muted-foreground">overhead_now:</span>
             <span className="text-[#00FF41] font-vt323 text-base glow-green">{overheadCount}</span>
             <span className="text-muted-foreground">objects</span>
           </div>
-          <button className="flex items-center gap-2 px-2 py-1 glass-panel rounded hover:bg-[rgba(0,255,65,0.1)] transition-colors">
-            <Eye className="w-3 h-3 text-[#00D4FF]" />
-            <span className="text-foreground">[VIEW_LIST]</span>
-          </button>
+          
+          {/* Support CTA - trendy and visible */}
+          <a
+            href="https://buymeacoffee.com/skyport"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-[rgba(255,180,0,0.15)] to-[rgba(255,100,0,0.15)] border border-[rgba(255,180,0,0.3)] hover:border-[rgba(255,180,0,0.6)] hover:from-[rgba(255,180,0,0.25)] hover:to-[rgba(255,100,0,0.25)] transition-all duration-300"
+          >
+            <Rocket className="w-3.5 h-3.5 text-[#FFB400] group-hover:animate-bounce" />
+            <span className="text-[#FFB400] font-medium">Fuel the mission</span>
+            <Heart className="w-3 h-3 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity fill-red-400" />
+          </a>
         </div>
       </div>
     </footer>
