@@ -572,6 +572,113 @@ function Moon({ isSelected, onMoonClick }: MoonProps) {
     return points;
   }, []);
 
+  // Generate low-poly ring points for the geometric ring structure
+  const ringPoints = useMemo(() => {
+    const points: THREE.Vector3[] = [];
+    const segments = 24; // Low-poly segments for pixelated look
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2;
+      points.push(new THREE.Vector3(
+        Math.cos(angle) * 0.7,
+        0,
+        Math.sin(angle) * 0.7
+      ));
+    }
+    return points;
+  }, []);
+
+  // Create procedural moon texture with maria and craters
+  const moonTexture = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    // Base lunar grey
+    ctx.fillStyle = '#8a8a8a';
+    ctx.fillRect(0, 0, 512, 256);
+
+    // Add maria (dark basaltic plains)
+    const maria = [
+      { x: 120, y: 100, r: 45, color: '#4a4a4a' }, // Mare Imbrium
+      { x: 180, y: 120, r: 35, color: '#505050' }, // Mare Serenitatis
+      { x: 220, y: 130, r: 40, color: '#484848' }, // Mare Tranquillitatis
+      { x: 160, y: 150, r: 25, color: '#525252' }, // Mare Nubium
+      { x: 280, y: 110, r: 30, color: '#4c4c4c' }, // Mare Crisium
+      { x: 100, y: 80, r: 20, color: '#4e4e4e' },  // Mare Frigoris
+      { x: 350, y: 130, r: 35, color: '#464646' }, // Oceanus Procellarum
+      { x: 380, y: 100, r: 25, color: '#505050' },
+      { x: 80, y: 140, r: 30, color: '#4a4a4a' },
+    ];
+
+    maria.forEach(m => {
+      const gradient = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, m.r);
+      gradient.addColorStop(0, m.color);
+      gradient.addColorStop(0.7, m.color);
+      gradient.addColorStop(1, '#7a7a7a');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.ellipse(m.x, m.y, m.r * 1.2, m.r, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Add large craters
+    const largeCraters = [
+      { x: 300, y: 80, r: 15 },
+      { x: 450, y: 150, r: 18 },
+      { x: 50, y: 180, r: 12 },
+      { x: 200, y: 200, r: 14 },
+      { x: 400, y: 60, r: 10 },
+      { x: 150, y: 50, r: 16 },
+      { x: 480, y: 100, r: 12 },
+    ];
+
+    largeCraters.forEach(c => {
+      // Crater rim (lighter)
+      ctx.strokeStyle = '#a0a0a0';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+      ctx.stroke();
+      // Crater shadow
+      ctx.fillStyle = '#606060';
+      ctx.beginPath();
+      ctx.arc(c.x + 1, c.y + 1, c.r * 0.8, 0, Math.PI * 2);
+      ctx.fill();
+      // Crater floor
+      ctx.fillStyle = '#757575';
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, c.r * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Add many small craters for detail
+    for (let i = 0; i < 200; i++) {
+      const x = Math.random() * 512;
+      const y = Math.random() * 256;
+      const r = Math.random() * 4 + 1;
+      ctx.fillStyle = `rgba(${100 + Math.random() * 40}, ${100 + Math.random() * 40}, ${100 + Math.random() * 40}, 0.5)`;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Add surface noise/texture
+    for (let i = 0; i < 1000; i++) {
+      const x = Math.random() * 512;
+      const y = Math.random() * 256;
+      const brightness = 120 + Math.random() * 40;
+      ctx.fillStyle = `rgba(${brightness}, ${brightness}, ${brightness}, 0.3)`;
+      ctx.fillRect(x, y, 1, 1);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    return texture;
+  }, []);
+
   return (
     <>
       {/* Moon orbit path - shown when selected */}
@@ -584,9 +691,10 @@ function Moon({ isSelected, onMoonClick }: MoonProps) {
           transparent
         />
       )}
-      
+
       <group ref={moonRef} position={[MOON_ORBIT_RADIUS, 0, 0]}>
-        <mesh 
+        {/* Main Moon sphere with texture */}
+        <mesh
           ref={moonMeshRef}
           onClick={onMoonClick}
           onPointerOver={() => {
@@ -599,39 +707,70 @@ function Moon({ isSelected, onMoonClick }: MoonProps) {
           }}
           scale={hovered || isSelected ? 1.1 : 1}
         >
-          <sphereGeometry args={[0.5, 32, 32]} />
-          <meshStandardMaterial 
-            color="#c0c0c0"
-            roughness={0.9}
-            metalness={0.1}
-          />
+          <sphereGeometry args={[0.5, 64, 64]} />
+          {moonTexture ? (
+            <meshStandardMaterial
+              map={moonTexture}
+              roughness={1}
+              metalness={0}
+              bumpScale={0.02}
+            />
+          ) : (
+            <meshStandardMaterial
+              color="#8a8a8a"
+              roughness={1}
+              metalness={0}
+            />
+          )}
         </mesh>
-        {/* Moon glow */}
+
+        {/* Subtle moon glow */}
         <mesh>
-          <sphereGeometry args={[0.55, 32, 32]} />
-          <meshBasicMaterial 
-            color="#ffffff"
+          <sphereGeometry args={[0.53, 32, 32]} />
+          <meshBasicMaterial
+            color="#aaaaaa"
             transparent
-            opacity={isSelected ? 0.2 : 0.1}
+            opacity={isSelected ? 0.15 : 0.08}
             side={THREE.BackSide}
           />
         </mesh>
-        
-        {/* Selection ring */}
+
+        {/* Low-poly geometric ring structure */}
+        <group rotation={[Math.PI / 2 + 0.2, 0, 0]}>
+          <Line
+            points={ringPoints}
+            color="#888888"
+            lineWidth={2}
+            opacity={0.8}
+            transparent
+          />
+        </group>
+
+        {/* Leader line from moon to label */}
+        <Line
+          points={[
+            new THREE.Vector3(0, 0.52, 0),
+            new THREE.Vector3(0, 0.85, 0)
+          ]}
+          color="#666666"
+          lineWidth={1}
+          opacity={0.8}
+          transparent
+        />
+
+        {/* MOON label - always visible */}
+        <Html position={[0, 1.0, 0]} center>
+          <div className="bg-[#1a1a1a] border border-[#444444] px-3 py-1.5 rounded-sm">
+            <span className="text-white font-mono text-sm font-medium tracking-wider">MOON</span>
+          </div>
+        </Html>
+
+        {/* Selection highlight ring */}
         {isSelected && (
           <mesh rotation={[Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.6, 0.65, 32]} />
-            <meshBasicMaterial color="#888888" transparent opacity={0.8} side={THREE.DoubleSide} />
+            <ringGeometry args={[0.58, 0.62, 6]} />
+            <meshBasicMaterial color="#666666" transparent opacity={0.6} side={THREE.DoubleSide} />
           </mesh>
-        )}
-        
-        {/* Label when selected */}
-        {isSelected && (
-          <Html position={[0, 0.8, 0]} center>
-            <div className="bg-[rgba(0,0,0,0.8)] border border-[rgba(136,136,136,0.5)] px-2 py-1 rounded text-xs whitespace-nowrap">
-              <span className="text-[#cccccc] font-mono">MOON</span>
-            </div>
-          </Html>
         )}
       </group>
     </>
