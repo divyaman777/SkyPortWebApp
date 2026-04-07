@@ -136,10 +136,10 @@ export default function Skyport() {
             {/* Logo */}
             <div className="text-center mb-8">
               <span className="text-3xl font-bold tracking-tight">
-                <span className="text-[#00FF41] glow-green">ORBIT</span>
-                <span className="text-[#00D4FF] glow-cyan">_WATCH</span>
+                <span className="text-[#00FF41] glow-green">SKY</span>
+                <span className="text-[#00D4FF] glow-cyan">PORT</span>
               </span>
-              <div className="text-muted-foreground text-sm mt-2">v2.1</div>
+              <div className="text-muted-foreground text-sm mt-2">Every satellite above you. Live.</div>
             </div>
 
             {/* Terminal box */}
