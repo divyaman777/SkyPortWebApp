@@ -572,52 +572,135 @@ function Moon({ isSelected, onMoonClick }: MoonProps) {
     return points;
   }, []);
 
-  // Load realistic moon textures (color map and bump map for craters)
-  const [moonTexture, setMoonTexture] = useState<THREE.Texture | null>(null);
-  const [bumpTexture, setBumpTexture] = useState<THREE.Texture | null>(null);
-  
-  useEffect(() => {
-    const loader = new THREE.TextureLoader();
-    // Solar System Scope textures - reliable and detailed
-    const textureUrl = 'https://www.solarsystemscope.com/textures/download/2k_moon.jpg';
-    
-    loader.load(
-      textureUrl,
-      (texture) => {
-        texture.colorSpace = THREE.SRGBColorSpace;
-        setMoonTexture(texture);
-        // Use same texture for bump mapping to create crater depth
-        setBumpTexture(texture.clone());
-      },
-      undefined,
-      (err) => {
-        console.log('[v0] Primary moon texture failed, trying fallback');
-        // Fallback texture
-        loader.load(
-          'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/moon_1024.jpg',
-          (texture) => {
-            texture.colorSpace = THREE.SRGBColorSpace;
-            setMoonTexture(texture);
-            setBumpTexture(texture.clone());
-          }
-        );
-      }
-    );
-  }, []);
+  // Create procedural moon texture with maria and craters
+  const moonTexture = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
 
-  // Generate thin orbital ring points
-  const orbitRingPoints = useMemo(() => {
-    const points: THREE.Vector3[] = [];
-    const segments = 64;
-    for (let i = 0; i <= segments; i++) {
-      const angle = (i / segments) * Math.PI * 2;
-      points.push(new THREE.Vector3(
-        Math.cos(angle) * 0.65,
-        0,
-        Math.sin(angle) * 0.65
-      ));
+    // Base lunar grey - lighter base
+    ctx.fillStyle = '#a8a8a8';
+    ctx.fillRect(0, 0, 1024, 512);
+
+    // Add maria (dark basaltic plains) - positioned like real Moon
+    const maria = [
+      { x: 240, y: 200, rx: 90, ry: 70, color: '#686868' },  // Mare Imbrium
+      { x: 360, y: 240, rx: 70, ry: 55, color: '#707070' },  // Mare Serenitatis  
+      { x: 440, y: 260, rx: 80, ry: 60, color: '#656565' },  // Mare Tranquillitatis
+      { x: 320, y: 300, rx: 50, ry: 40, color: '#727272' },  // Mare Nubium
+      { x: 560, y: 220, rx: 60, ry: 45, color: '#6a6a6a' },  // Mare Crisium
+      { x: 200, y: 160, rx: 40, ry: 30, color: '#6e6e6e' },  // Mare Frigoris
+      { x: 700, y: 260, rx: 70, ry: 55, color: '#626262' },  // Oceanus Procellarum
+      { x: 760, y: 200, rx: 50, ry: 40, color: '#707070' },
+      { x: 160, y: 280, rx: 60, ry: 45, color: '#686868' },
+      { x: 500, y: 180, rx: 45, ry: 35, color: '#6c6c6c' },
+      { x: 600, y: 320, rx: 55, ry: 42, color: '#696969' },
+    ];
+
+    maria.forEach(m => {
+      const gradient = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, Math.max(m.rx, m.ry));
+      gradient.addColorStop(0, m.color);
+      gradient.addColorStop(0.6, m.color);
+      gradient.addColorStop(1, '#909090');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.ellipse(m.x, m.y, m.rx, m.ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Add large prominent craters with bright rays
+    const largeCraters = [
+      { x: 600, y: 160, r: 30, hasRays: true },
+      { x: 900, y: 300, r: 35, hasRays: true },
+      { x: 100, y: 360, r: 25, hasRays: true },
+      { x: 400, y: 400, r: 28, hasRays: false },
+      { x: 800, y: 120, r: 20, hasRays: true },
+      { x: 300, y: 100, r: 32, hasRays: false },
+      { x: 960, y: 200, r: 24, hasRays: false },
+      { x: 150, y: 150, r: 22, hasRays: true },
+      { x: 700, y: 380, r: 26, hasRays: false },
+      { x: 520, y: 350, r: 18, hasRays: true },
+    ];
+
+    largeCraters.forEach(c => {
+      // Crater rays (bright ejecta)
+      if (c.hasRays) {
+        ctx.strokeStyle = '#c8c8c8';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 8; i++) {
+          const angle = (i / 8) * Math.PI * 2;
+          const rayLength = c.r * 2.5;
+          ctx.beginPath();
+          ctx.moveTo(c.x, c.y);
+          ctx.lineTo(c.x + Math.cos(angle) * rayLength, c.y + Math.sin(angle) * rayLength);
+          ctx.stroke();
+        }
+      }
+      // Crater rim (lighter)
+      ctx.strokeStyle = '#c0c0c0';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+      ctx.stroke();
+      // Crater shadow (darker side)
+      const shadowGrad = ctx.createLinearGradient(c.x - c.r, c.y, c.x + c.r, c.y);
+      shadowGrad.addColorStop(0, '#606060');
+      shadowGrad.addColorStop(0.5, '#787878');
+      shadowGrad.addColorStop(1, '#909090');
+      ctx.fillStyle = shadowGrad;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, c.r * 0.85, 0, Math.PI * 2);
+      ctx.fill();
+      // Crater floor
+      ctx.fillStyle = '#858585';
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, c.r * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Add medium craters
+    for (let i = 0; i < 80; i++) {
+      const x = Math.random() * 1024;
+      const y = Math.random() * 512;
+      const r = Math.random() * 12 + 5;
+      ctx.strokeStyle = '#b8b8b8';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#787878';
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.7, 0, Math.PI * 2);
+      ctx.fill();
     }
-    return points;
+
+    // Add many small craters for detail
+    for (let i = 0; i < 400; i++) {
+      const x = Math.random() * 1024;
+      const y = Math.random() * 512;
+      const r = Math.random() * 4 + 1;
+      const brightness = 100 + Math.random() * 50;
+      ctx.fillStyle = `rgb(${brightness}, ${brightness}, ${brightness})`;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Add subtle surface texture noise
+    for (let i = 0; i < 2000; i++) {
+      const x = Math.random() * 1024;
+      const y = Math.random() * 512;
+      const brightness = 140 + Math.random() * 50;
+      ctx.fillStyle = `rgba(${brightness}, ${brightness}, ${brightness}, 0.4)`;
+      ctx.fillRect(x, y, 2, 2);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    return texture;
   }, []);
 
   return (
@@ -634,7 +717,7 @@ function Moon({ isSelected, onMoonClick }: MoonProps) {
       )}
 
       <group ref={moonRef} position={[MOON_ORBIT_RADIUS, 0, 0]}>
-        {/* Main Moon sphere with realistic texture and bump mapping */}
+        {/* Main Moon sphere with procedural texture */}
         <mesh
           ref={moonMeshRef}
           onClick={onMoonClick}
@@ -648,65 +731,55 @@ function Moon({ isSelected, onMoonClick }: MoonProps) {
           }}
           scale={hovered || isSelected ? 1.1 : 1}
         >
-          <sphereGeometry args={[0.5, 128, 128]} />
+          <sphereGeometry args={[0.5, 64, 64]} />
           {moonTexture ? (
             <meshStandardMaterial
               map={moonTexture}
-              bumpMap={bumpTexture}
-              bumpScale={0.015}
-              roughness={0.8}
-              metalness={0.1}
-              envMapIntensity={0.3}
+              roughness={0.9}
+              metalness={0.05}
             />
           ) : (
             <meshStandardMaterial
-              color="#9a9a9a"
-              roughness={0.8}
-              metalness={0.1}
+              color="#a0a0a0"
+              roughness={0.9}
+              metalness={0.05}
             />
           )}
         </mesh>
 
-        {/* Thin orbital ring around Moon - like in reference image */}
-        <group rotation={[Math.PI / 2 + 0.15, 0, 0.1]}>
-          <Line
-            points={orbitRingPoints}
-            color="#888888"
-            lineWidth={1.5}
-            opacity={0.6}
-            transparent
-          />
-        </group>
-
-        {/* Subtle rim light effect */}
+        {/* Subtle moon glow */}
         <mesh>
-          <sphereGeometry args={[0.51, 64, 64]} />
+          <sphereGeometry args={[0.52, 32, 32]} />
           <meshBasicMaterial
-            color="#aaaaaa"
+            color="#cccccc"
             transparent
-            opacity={0.05}
+            opacity={isSelected ? 0.12 : 0.06}
             side={THREE.BackSide}
           />
         </mesh>
 
         {/* Leader line from moon to label */}
-        <Line
-          points={[
-            new THREE.Vector3(0, 0.52, 0),
-            new THREE.Vector3(0, 0.8, 0)
-          ]}
-          color="#555555"
-          lineWidth={1}
-          opacity={0.9}
-          transparent
-        />
+        {(hovered || isSelected) && (
+          <Line
+            points={[
+              new THREE.Vector3(0, 0.52, 0),
+              new THREE.Vector3(0, 0.8, 0)
+            ]}
+            color="#666666"
+            lineWidth={1}
+            opacity={0.8}
+            transparent
+          />
+        )}
 
-        {/* MOON label - always visible */}
-        <Html position={[0, 0.95, 0]} center>
-          <div className="bg-[#111111] border border-[#333333] px-4 py-1.5 rounded">
-            <span className="text-[#e0e0e0] font-mono text-sm font-medium tracking-widest">MOON</span>
-          </div>
-        </Html>
+        {/* MOON label - shown on hover or select */}
+        {(hovered || isSelected) && (
+          <Html position={[0, 0.95, 0]} center>
+            <div className="bg-[#0a0a0a] border border-[#444444] px-3 py-1 rounded">
+              <span className="text-white font-mono text-sm font-medium tracking-wider">MOON</span>
+            </div>
+          </Html>
+        )}
 
         {/* Selection highlight ring */}
         {isSelected && (
