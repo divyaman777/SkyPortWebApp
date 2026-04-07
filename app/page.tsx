@@ -131,31 +131,78 @@ export default function Skyport() {
         <div className="star-field" />
         <div className="scanlines" />
         
-        <div className="glass-panel p-8 rounded max-w-md w-full mx-4 z-10">
-          <div className="space-y-4">
-            {/* Logo */}
-            <div className="text-center mb-8">
-              <span className="text-3xl font-bold tracking-tight">
-                <span className="text-[#00FF41] glow-green">SKY</span>
-                <span className="text-[#00D4FF] glow-cyan">PORT</span>
-              </span>
-              <div className="text-muted-foreground text-sm mt-2">Every satellite above you. Live.</div>
+        <div className="flex flex-col items-center z-10 px-4">
+          {/* Animated Earth and Satellite Logo */}
+          <div className="relative w-40 h-40 mb-8">
+            {/* Earth */}
+            <div className="absolute inset-4 rounded-full bg-gradient-to-br from-[#1a5276] via-[#0a3d62] to-[#0c1821] shadow-[0_0_60px_rgba(0,212,255,0.3)]">
+              {/* Continent hints */}
+              <div className="absolute inset-0 rounded-full overflow-hidden">
+                <div className="absolute top-[20%] left-[25%] w-[30%] h-[25%] bg-[#2d5016] opacity-40 rounded-full blur-[2px]" />
+                <div className="absolute top-[45%] left-[15%] w-[20%] h-[30%] bg-[#2d5016] opacity-30 rounded-full blur-[2px]" />
+                <div className="absolute top-[30%] right-[20%] w-[25%] h-[35%] bg-[#2d5016] opacity-35 rounded-full blur-[2px]" />
+              </div>
+              {/* Atmosphere glow */}
+              <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-transparent via-[#00D4FF] to-transparent opacity-20 blur-sm" />
             </div>
+            
+            {/* Orbit ring */}
+            <div className="absolute inset-0 rounded-full border border-[#00FF41] opacity-40" 
+                 style={{ transform: 'rotateX(75deg)' }} />
+            
+            {/* Orbiting satellite */}
+            <div className="absolute inset-0 animate-spin" style={{ animationDuration: '3s' }}>
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1">
+                {/* Satellite body */}
+                <div className="relative">
+                  <div className="w-3 h-2 bg-[#c0c0c0] rounded-sm shadow-[0_0_10px_rgba(0,255,65,0.8)]" />
+                  {/* Solar panels */}
+                  <div className="absolute top-1/2 -translate-y-1/2 -left-3 w-3 h-1 bg-[#00D4FF] opacity-80" />
+                  <div className="absolute top-1/2 -translate-y-1/2 -right-3 w-3 h-1 bg-[#00D4FF] opacity-80" />
+                  {/* Signal waves */}
+                  <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 bg-[#00FF41] rounded-full animate-ping" />
+                </div>
+              </div>
+            </div>
+            
+            {/* Second orbit ring */}
+            <div className="absolute inset-2 rounded-full border border-dashed border-[#00D4FF] opacity-20" 
+                 style={{ transform: 'rotateX(75deg) rotateZ(45deg)' }} />
+          </div>
+          
+          {/* Logo Text */}
+          <div className="text-center mb-6">
+            <h1 className="text-5xl font-bold tracking-tight mb-3">
+              <span className="text-[#00FF41] glow-green">SKY</span>
+              <span className="text-[#00D4FF] glow-cyan">PORT</span>
+            </h1>
+            <p className="text-lg text-foreground mb-1">Every satellite above you.</p>
+            <p className="text-lg text-foreground mb-1">Everything they&apos;re sending down.</p>
+            <p className="text-[#00FF41] text-lg font-bold glow-green">Live.</p>
+          </div>
+          
+          {/* Subtext */}
+          <p className="text-muted-foreground text-sm text-center max-w-md mb-8">
+            Real-time 3D tracking of every broadcasting satellite in orbit.
+            <br />
+            <span className="text-[#00D4FF]">Weather imagery</span> · <span className="text-[#FFB300]">NASA feeds</span> · <span className="text-[#00FF41]">Radio transmissions</span>
+          </p>
 
-            {/* Terminal box */}
-            <div className="bg-[rgba(0,0,0,0.5)] p-4 rounded border border-[rgba(0,255,65,0.3)]">
+          {/* Terminal box */}
+          <div className="glass-panel p-4 rounded max-w-sm w-full">
+            <div className="bg-[rgba(0,0,0,0.5)] p-3 rounded border border-[rgba(0,255,65,0.3)]">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-[#00FF41]">&gt;</span>
-                <span className="text-muted-foreground text-sm">SYSTEM_INIT</span>
+                <span className="text-muted-foreground text-xs">SYSTEM_INIT</span>
               </div>
-              <div className="text-[#00FF41] text-sm font-vt323 h-6">
+              <div className="text-[#00FF41] text-sm font-mono h-5">
                 {loadingText}
                 <span className="cursor-blink ml-1">▮</span>
               </div>
             </div>
 
             {/* Progress bar */}
-            <div className="h-1 bg-[rgba(0,255,65,0.2)] rounded overflow-hidden">
+            <div className="h-1 bg-[rgba(0,255,65,0.2)] rounded overflow-hidden mt-3">
               <div 
                 className="h-full bg-[#00FF41] transition-all duration-300"
                 style={{ 
