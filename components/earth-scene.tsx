@@ -1,175 +1,83 @@
 'use client';
 
-import { useRef, useState, useMemo, Suspense } from 'react';
+import { useRef, useState, useEffect, useMemo, Suspense } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { Satellite, categoryColors, SatelliteCategory } from '@/lib/satellite-data';
 import { computeECIPosition, computeOrbitPathECI, computeMoonPositionECI, computeMoonOrbitNormal, getJWSTPositionECI, getGMST } from '@/lib/satellite-engine';
 
-// Detailed continent outlines as [lon, lat] coordinate arrays
-const CONTINENT_DATA: Record<string, number[][]> = {
-  // North America - detailed coastline
-  northAmericaWest: [
-    [-168, 66], [-164, 64], [-161, 64], [-158, 62], [-155, 59], [-152, 60],
-    [-149, 61], [-146, 61], [-141, 60], [-139, 60], [-137, 59], [-135, 57],
-    [-133, 55], [-130, 54], [-128, 51], [-125, 49], [-124, 46], [-124, 43],
-    [-122, 38], [-118, 34], [-117, 33], [-115, 31], [-112, 29], [-110, 27],
-    [-107, 25], [-105, 22], [-100, 22], [-97, 26],
-  ],
-  northAmericaGulf: [
-    [-97, 26], [-95, 29], [-93, 30], [-90, 30], [-88, 30], [-86, 30],
-    [-84, 29], [-82, 27], [-81, 25], [-80, 25],
-  ],
-  northAmericaEast: [
-    [-80, 25], [-80, 27], [-81, 30], [-80, 32], [-78, 34], [-75, 36],
-    [-74, 39], [-73, 41], [-71, 42], [-70, 44], [-68, 44], [-66, 45],
-    [-64, 45], [-61, 46], [-60, 47], [-56, 48], [-53, 47], [-56, 50],
-    [-58, 52], [-61, 53], [-64, 54], [-62, 56], [-60, 57], [-62, 58],
-    [-68, 59], [-73, 61], [-78, 63], [-82, 64], [-85, 66], [-88, 68],
-    [-95, 70], [-105, 73], [-120, 72], [-130, 70], [-141, 70], [-150, 71],
-    [-160, 72], [-168, 66],
-  ],
-  // South America - detailed coastline  
-  southAmericaNorth: [
-    [-77, 10], [-74, 11], [-71, 12], [-68, 11], [-65, 10], [-62, 11],
-    [-60, 9], [-58, 7], [-55, 6], [-52, 5], [-50, 2], [-50, 0],
-  ],
-  southAmericaEast: [
-    [-50, 0], [-48, -2], [-45, -3], [-42, -3], [-38, -4], [-35, -6],
-    [-35, -9], [-37, -12], [-39, -15], [-40, -18], [-42, -22], [-44, -23],
-    [-47, -26], [-49, -28], [-51, -30], [-52, -32], [-55, -34], [-57, -36],
-    [-59, -38], [-62, -39], [-64, -42], [-65, -45], [-67, -50], [-69, -52],
-    [-73, -54], [-74, -52],
-  ],
-  southAmericaWest: [
-    [-74, -52], [-75, -48], [-74, -45], [-72, -40], [-72, -35], [-71, -30],
-    [-70, -25], [-70, -20], [-72, -17], [-76, -14], [-77, -10], [-80, -6],
-    [-81, -2], [-80, 0], [-78, 2], [-77, 4], [-77, 7], [-77, 10],
-  ],
-  // Africa - detailed coastline
-  africaNorth: [
-    [-17, 21], [-16, 24], [-13, 28], [-10, 32], [-6, 35], [-2, 36],
-    [3, 37], [8, 37], [10, 37], [11, 34], [15, 33], [20, 32], [25, 32],
-    [30, 31], [33, 32], [35, 31], [36, 30],
-  ],
-  africaEast: [
-    [36, 30], [35, 27], [34, 24], [36, 22], [38, 18], [40, 15], [43, 12],
-    [46, 10], [49, 9], [51, 11], [48, 8], [45, 3], [42, 0], [40, -3],
-    [40, -7], [39, -11], [38, -15], [36, -20], [33, -26], [28, -33], [26, -34],
-  ],
-  africaSouth: [
-    [26, -34], [22, -34], [19, -34], [18, -33], [18, -32], [17, -30],
-    [15, -28], [14, -25], [13, -22], [12, -18],
-  ],
-  africaWest: [
-    [12, -18], [11, -14], [10, -10], [8, -5], [5, 0], [0, 5], [-5, 8],
-    [-10, 10], [-15, 12], [-17, 15], [-17, 21],
-  ],
-  // Europe - detailed coastline
-  europeWest: [
-    [-10, 36], [-9, 38], [-9, 40], [-8, 42], [-9, 43], [-5, 43], [-2, 44],
-    [-1, 46], [-4, 48], [-5, 49], [-5, 50], [-1, 51], [2, 51], [4, 52],
-    [5, 53], [7, 54], [8, 55], [10, 55], [11, 54], [13, 55], [14, 54],
-  ],
-  europeNorth: [
-    [14, 54], [18, 55], [21, 55], [24, 58], [25, 60], [22, 60], [20, 63],
-    [18, 64], [15, 66], [14, 68], [17, 69], [20, 70], [25, 71], [30, 70],
-  ],
-  europeEast: [
-    [30, 70], [35, 67], [38, 64], [40, 62], [37, 57], [35, 55], [32, 52],
-    [30, 50], [29, 46], [28, 44], [30, 42], [26, 40], [24, 38], [22, 36],
-  ],
-  europeSouth: [
-    [22, 36], [20, 38], [18, 40], [15, 40], [12, 42], [10, 44], [8, 44],
-    [6, 43], [3, 42], [0, 40], [-5, 37], [-10, 36],
-  ],
-  // Asia - main continent
-  asiaWest: [
-    [30, 42], [34, 42], [38, 40], [42, 38], [45, 38], [50, 37], [53, 36],
-    [57, 34], [62, 30], [65, 26], [67, 24], [70, 22], [73, 20], [77, 15],
-    [78, 10], [80, 8],
-  ],
-  asiaSouth: [
-    [80, 8], [82, 10], [85, 15], [88, 18], [90, 22], [92, 20], [95, 17],
-    [98, 15], [100, 12], [103, 8], [104, 3], [104, 1],
-  ],
-  asiaSouthEast: [
-    [104, 1], [106, 2], [108, 6], [110, 10], [112, 14], [116, 20], [118, 22],
-    [120, 24], [122, 26], [124, 28], [127, 33], [130, 35],
-  ],
-  asiaEast: [
-    [130, 35], [132, 38], [128, 40], [125, 42], [129, 44], [132, 43],
-    [135, 46], [138, 48], [142, 52], [145, 55], [150, 58], [157, 60],
-    [163, 65], [170, 66], [175, 68], [180, 68],
-  ],
-  asiaNorth: [
-    [180, 68], [180, 72], [170, 72], [150, 72], [130, 75], [110, 77],
-    [90, 78], [70, 77], [60, 74], [50, 70], [42, 68], [38, 66], [30, 65],
-    [28, 60], [27, 56], [30, 52], [30, 47], [30, 42],
-  ],
-  // Australia - detailed coastline
-  australiaMain: [
-    [114, -22], [118, -20], [122, -17], [127, -14], [130, -12], [135, -12],
-    [138, -13], [140, -12], [142, -11], [145, -15], [146, -19], [148, -20],
-    [150, -23], [153, -26], [153, -29], [151, -34], [147, -38], [143, -39],
-    [140, -37], [136, -35], [133, -33], [130, -32], [125, -32], [120, -33],
-    [116, -34], [114, -32], [114, -28], [114, -22],
-  ],
-  // Japan islands
-  japanMain: [
-    [130, 32], [131, 34], [133, 34], [135, 35], [137, 35], [139, 36],
-    [140, 38], [141, 40], [141, 42], [143, 43], [145, 44], [146, 45],
-    [144, 44], [142, 43], [140, 42], [139, 40], [140, 38], [138, 36],
-    [136, 35], [133, 34], [131, 33], [130, 32],
-  ],
-  // UK/Ireland
-  ukMain: [
-    [-6, 50], [-4, 50], [-2, 51], [0, 51], [2, 52], [1, 53], [0, 54],
-    [-2, 55], [-4, 56], [-5, 58], [-6, 58], [-8, 57], [-6, 56], [-5, 54],
-    [-4, 53], [-6, 52], [-6, 50],
-  ],
-  irelandMain: [
-    [-10, 52], [-9, 53], [-8, 54], [-9, 55], [-10, 54], [-10, 52],
-  ],
-  // Greenland
-  greenlandMain: [
-    [-44, 60], [-42, 63], [-37, 66], [-32, 68], [-26, 70], [-22, 72],
-    [-20, 75], [-25, 77], [-35, 80], [-45, 82], [-55, 81], [-60, 78],
-    [-65, 74], [-67, 70], [-62, 66], [-55, 63], [-50, 60], [-44, 60],
-  ],
-  // Madagascar
-  madagascarMain: [
-    [44, -13], [48, -14], [50, -17], [50, -22], [47, -25], [44, -24],
-    [43, -20], [44, -16], [44, -13],
-  ],
-  // New Zealand
-  nzNorth: [
-    [173, -35], [175, -36], [178, -37], [178, -39], [176, -40], [175, -39],
-    [173, -38], [172, -36], [173, -35],
-  ],
-  nzSouth: [
-    [167, -44], [168, -45], [170, -46], [171, -45], [173, -44], [174, -42],
-    [172, -41], [170, -42], [168, -44], [167, -44],
-  ],
-  // Indonesia main islands
-  sumatra: [
-    [95, 6], [98, 4], [101, 1], [104, -2], [106, -6], [103, -6], [99, -3],
-    [97, 0], [95, 3], [95, 6],
-  ],
-  borneo: [
-    [109, 4], [112, 3], [115, 4], [118, 5], [119, 3], [118, 0], [116, -2],
-    [114, -4], [111, -3], [109, -1], [109, 2], [109, 4],
-  ],
-  papuaNewGuinea: [
-    [141, -3], [144, -4], [147, -5], [150, -6], [152, -5], [150, -3],
-    [147, -2], [144, -3], [141, -3],
-  ],
-};
+// ─── GeoJSON Border Loading ─────────────────────────────────
+const WORLD_GEOJSON_URL = 'https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json';
+const INDIA_GEOJSON_URL = 'https://raw.githubusercontent.com/AbhinavSwami28/india-official-geojson/main/india-states-simplified.geojson';
 
-// Convert continent data to 3D line segments
-function continentToPoints(coords: number[][], radius: number): THREE.Vector3[] {
-  return coords.map(([lon, lat]) => latLonToVector3(lat, lon, radius));
+// Convert GeoJSON geometry to 3D line arrays on the sphere
+function geoJSONToLines(geometry: { type: string; coordinates: number[][][] | number[][][][] }, radius: number): THREE.Vector3[][] {
+  const lines: THREE.Vector3[][] = [];
+
+  if (geometry.type === 'Polygon') {
+    for (const ring of geometry.coordinates as number[][][]) {
+      if (ring.length > 2) {
+        lines.push(ring.map(([lon, lat]) => latLonToVector3(lat, lon, radius)));
+      }
+    }
+  } else if (geometry.type === 'MultiPolygon') {
+    for (const polygon of geometry.coordinates as number[][][][]) {
+      for (const ring of polygon) {
+        if (ring.length > 2) {
+          lines.push(ring.map(([lon, lat]) => latLonToVector3(lat, lon, radius)));
+        }
+      }
+    }
+  }
+
+  return lines;
+}
+
+// Module-level cache so borders load only once across remounts
+let cachedBorderLines: THREE.Vector3[][] | null = null;
+let borderLoadPromise: Promise<THREE.Vector3[][]> | null = null;
+
+async function loadGeoJSONBorders(radius: number): Promise<THREE.Vector3[][]> {
+  if (cachedBorderLines) return cachedBorderLines;
+  if (borderLoadPromise) return borderLoadPromise;
+
+  borderLoadPromise = (async () => {
+    const [worldRes, indiaRes] = await Promise.all([
+      fetch(WORLD_GEOJSON_URL),
+      fetch(INDIA_GEOJSON_URL),
+    ]);
+
+    const worldData = await worldRes.json();
+    const indiaData = await indiaRes.json();
+
+    // Remove incorrect India and Pakistan from world data
+    const filteredFeatures = worldData.features.filter((f: { properties?: { name?: string } }) => {
+      const name = (f.properties?.name || '').toLowerCase();
+      return name !== 'india' && name !== 'pakistan';
+    });
+
+    // Add official India state boundaries
+    const indiaFeatures = indiaData.features.map((f: { properties?: Record<string, string>; [key: string]: unknown }) => ({
+      ...f,
+      properties: { ...f.properties, name: f.properties?.name || 'India' },
+    }));
+
+    const allFeatures = [...filteredFeatures, ...indiaFeatures];
+
+    const lines: THREE.Vector3[][] = [];
+    for (const feature of allFeatures) {
+      if (feature.geometry) {
+        lines.push(...geoJSONToLines(feature.geometry, radius));
+      }
+    }
+
+    cachedBorderLines = lines;
+    console.log(`[SKYPORT] Loaded ${lines.length} border segments from GeoJSON`);
+    return lines;
+  })();
+
+  return borderLoadPromise;
 }
 
 interface EarthSceneProps {
@@ -232,21 +140,18 @@ function getMoonSimDate(): Date {
 // Earth rotation state
 let earthRotation = 0;
 
-// Earth component with real world map outlines
+// Earth component with accurate GeoJSON country borders
 function Earth() {
   const earthRef = useRef<THREE.Group>(null);
-  
-  const continentLines = useMemo(() => {
-    const lines: { points: THREE.Vector3[]; key: string }[] = [];
-    Object.entries(CONTINENT_DATA).forEach(([name, coords]) => {
-      lines.push({
-        key: name,
-        points: continentToPoints(coords, 2.02),
-      });
+  const [borderLines, setBorderLines] = useState<THREE.Vector3[][]>([]);
+
+  // Fetch GeoJSON borders on mount
+  useEffect(() => {
+    loadGeoJSONBorders(2.01).then(setBorderLines).catch(err => {
+      console.warn('[SKYPORT] GeoJSON border load failed:', err);
     });
-    return lines;
   }, []);
-  
+
   useFrame(() => {
     if (earthRef.current) {
       earthRotation = getGMST(getSimDate());
@@ -256,71 +161,61 @@ function Earth() {
 
   return (
     <group ref={earthRef}>
-      {/* Ocean sphere - visible deep blue with clear edge */}
+      {/* Ocean sphere - deep dark blue */}
       <mesh>
         <sphereGeometry args={[2, 128, 128]} />
-        <meshStandardMaterial 
-          color="#0a1a30"
-          roughness={0.7}
-          metalness={0.2}
+        <meshStandardMaterial
+          color="#050a12"
+          roughness={0.9}
+          metalness={0.1}
         />
       </mesh>
-      
-      {/* Land mass fill - subtle green tint areas */}
-      <mesh>
-        <sphereGeometry args={[1.99, 64, 64]} />
-        <meshStandardMaterial 
-          color="#051510"
-          roughness={1}
-          metalness={0}
-        />
-      </mesh>
-      
-      {/* Continent coastlines - bright cyan/green */}
-      {continentLines.map(({ points, key }) => (
+
+      {/* Country/continent borders from GeoJSON */}
+      {borderLines.map((points, i) => (
         <Line
-          key={key}
+          key={`border-${i}`}
           points={points}
-          color="#00FFCC"
-          lineWidth={2}
-          opacity={1}
-          transparent={false}
+          color="#40E0D0"
+          lineWidth={1.2}
+          opacity={0.9}
+          transparent
         />
       ))}
-      
+
       {/* Earth edge glow - visible bright rim */}
       <mesh>
         <sphereGeometry args={[2.03, 64, 64]} />
-        <meshBasicMaterial 
+        <meshBasicMaterial
           color="#00FFFF"
           transparent
-          opacity={0.15}
+          opacity={0.12}
           side={THREE.BackSide}
         />
       </mesh>
-      
-      {/* Outer atmosphere - cyan glow */}
+
+      {/* Atmosphere glow */}
       <mesh>
-        <sphereGeometry args={[2.12, 64, 64]} />
-        <meshBasicMaterial 
+        <sphereGeometry args={[2.08, 64, 64]} />
+        <meshBasicMaterial
           color="#00AAFF"
           transparent
-          opacity={0.08}
+          opacity={0.06}
           side={THREE.BackSide}
         />
       </mesh>
-      
-      {/* Second outer glow for depth */}
+
+      {/* Outer atmosphere for depth */}
       <mesh>
-        <sphereGeometry args={[2.2, 64, 64]} />
-        <meshBasicMaterial 
+        <sphereGeometry args={[2.18, 64, 64]} />
+        <meshBasicMaterial
           color="#004488"
           transparent
-          opacity={0.05}
+          opacity={0.04}
           side={THREE.BackSide}
         />
       </mesh>
-      
+
       {/* Observer location marker */}
       <ObserverMarker />
     </group>
@@ -966,15 +861,15 @@ function GridLines() {
   for (let lat = -60; lat <= 60; lat += 30) {
     const points: THREE.Vector3[] = [];
     for (let lon = 0; lon <= 360; lon += 10) {
-      points.push(latLonToVector3(lat, lon - 180, 2.01));
+      points.push(latLonToVector3(lat, lon - 180, 2.005));
     }
     lines.push(points);
   }
-  
+
   for (let lon = 0; lon < 360; lon += 30) {
     const points: THREE.Vector3[] = [];
     for (let lat = -90; lat <= 90; lat += 10) {
-      points.push(latLonToVector3(lat, lon - 180, 2.01));
+      points.push(latLonToVector3(lat, lon - 180, 2.005));
     }
     lines.push(points);
   }
@@ -985,9 +880,9 @@ function GridLines() {
         <Line
           key={i}
           points={points}
-          color="#00FF41"
+          color="#1a3a4a"
           lineWidth={0.5}
-          opacity={0.08}
+          opacity={0.4}
           transparent
         />
       ))}
