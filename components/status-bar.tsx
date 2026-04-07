@@ -97,21 +97,19 @@ export function StatusBar({ overheadCount }: StatusBarProps) {
   return (
     <footer className="fixed bottom-0 left-0 right-0 z-50 h-10 glass-panel border-t border-[rgba(0,255,65,0.2)]">
       <div className="flex items-center justify-between h-full px-4">
-        {/* Left - Data source */}
-        <div className="flex items-center gap-2 text-xs">
+        {/* Left - Data sources */}
+        <div className="flex items-center gap-2 text-xs overflow-hidden">
           <span className="text-[#00FF41]">&gt;</span>
-          <span className="text-muted-foreground">data_src:</span>
-          <a 
-            href="https://celestrak.org/SOCRATES" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-[#00D4FF] hover:text-[#00FF41] transition-colors"
-          >
-            celestrak.org/SOCRATES
-          </a>
+          <span className="text-muted-foreground hidden sm:inline">data:</span>
+          <a href="https://celestrak.org" target="_blank" rel="noopener noreferrer" className="text-[#00D4FF] hover:text-[#00FF41] transition-colors whitespace-nowrap">Celestrak</a>
+          <span className="text-muted-foreground hidden sm:inline">·</span>
+          <span className="text-muted-foreground hidden sm:inline whitespace-nowrap">Open Notify</span>
+          <span className="text-muted-foreground hidden md:inline">·</span>
+          <span className="text-muted-foreground hidden md:inline">NOAA</span>
+          <span className="text-muted-foreground hidden md:inline">·</span>
+          <span className="text-muted-foreground hidden md:inline">NASA</span>
           <span className="text-muted-foreground">|</span>
-          <span className="text-muted-foreground">refresh:</span>
-          <span className="text-[#00FF41]">auto/30s</span>
+          <span className="text-[#00FF41]">LIVE</span>
           <span className={`text-[#00FF41] ${cursorVisible ? 'opacity-100' : 'opacity-0'}`}>_</span>
         </div>
 

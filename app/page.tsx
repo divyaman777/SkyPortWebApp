@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { NavigationBar } from '@/components/navigation-bar';
 import { FilterPanel } from '@/components/filter-panel';
 import { SatelliteDetail } from '@/components/satellite-detail';
@@ -9,12 +9,18 @@ import { SatelliteDetail } from '@/components/satellite-detail';
 import { SatelliteTooltip } from '@/components/satellite-tooltip';
 import { StatusBar } from '@/components/status-bar';
 import { EarthGlobe } from '@/components/earth-globe';
-import { 
-  Satellite, 
-  SatelliteCategory, 
-  generateMockSatellites, 
-  getCategoryCounts 
+import {
+  Satellite,
+  SatelliteCategory,
+  getCategoryCounts
 } from '@/lib/satellite-data';
+import {
+  initializeTLEs,
+  computeSatellitePosition,
+  computeAllPositions,
+  computeMoonPosition,
+} from '@/lib/satellite-engine';
+import { SATELLITE_REGISTRY } from '@/lib/satellite-registry';
 
 export default function Skyport() {
   const [satellites, setSatellites] = useState<Satellite[]>([]);
@@ -25,7 +31,8 @@ export default function Skyport() {
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingText, setLoadingText] = useState('');
-  
+  const engineReady = useRef(false);
+
   const [filters, setFilters] = useState<Record<SatelliteCategory, boolean>>({
     WEATHER_SAT: true,
     SPACE_STATION: true,
@@ -35,21 +42,59 @@ export default function Skyport() {
     COMMS: true,
   });
 
-  // Initialize satellites
+  // Build initial Satellite objects from registry with real positions
+  const buildSatelliteList = useCallback(async (): Promise<Satellite[]> => {
+    const allPos = await computeAllPositions();
+    const sats: Satellite[] = [];
+
+    for (const entry of SATELLITE_REGISTRY) {
+      if (entry.special === 'MOON') continue; // Moon handled separately in 3D scene
+
+      const pos = allPos.satellites.find(p => p.id === entry.id);
+
+      sats.push({
+        id: entry.id,
+        noradId: entry.noradId,
+        name: entry.name,
+        category: entry.category,
+        status: 'ACTIVE',
+        inView: false, // Will be computed if geolocation available
+        altitude: pos?.altitude ?? entry.nominalAltitude,
+        velocity: pos?.velocity ?? 7.5,
+        inclination: pos?.inclination ?? 0,
+        period: pos?.period ?? 90,
+        latitude: pos?.latitude ?? 0,
+        longitude: pos?.longitude ?? 0,
+        signals: entry.signals,
+        isReal: true,
+        registryId: entry.id,
+        type: entry.type,
+        launchDate: entry.launchDate,
+        country: entry.country,
+        special: entry.special,
+      });
+    }
+
+    return sats;
+  }, []);
+
+  // Initialize satellites with real TLE data
   useEffect(() => {
-    // Simulate loading with typing animation
     const loadingMessages = [
       'Initializing orbital mechanics...',
       'Fetching TLE data from CELESTRAK...',
-      'Calculating satellite positions...',
+      'Parsing Two-Line Element sets...',
+      'Propagating satellite positions...',
       'Rendering globe visualization...',
       'System ready.'
     ];
 
     let messageIndex = 0;
     let charIndex = 0;
+    let cancelled = false;
 
     const typingInterval = setInterval(() => {
+      if (cancelled) return;
       if (messageIndex < loadingMessages.length) {
         const currentMessage = loadingMessages[messageIndex];
         if (charIndex < currentMessage.length) {
@@ -59,29 +104,76 @@ export default function Skyport() {
           messageIndex++;
           charIndex = 0;
           if (messageIndex >= loadingMessages.length) {
-            setTimeout(() => {
-              setIsLoading(false);
-              setSatellites(generateMockSatellites());
-            }, 500);
             clearInterval(typingInterval);
           }
         }
       }
     }, 30);
 
-    return () => clearInterval(typingInterval);
-  }, []);
+    // Actually fetch TLE data while loading animation plays
+    (async () => {
+      try {
+        await initializeTLEs();
+        engineReady.current = true;
+        const sats = await buildSatelliteList();
+        if (!cancelled) {
+          // Wait for typing animation to finish or cut it short
+          const waitForAnimation = () => {
+            if (messageIndex >= loadingMessages.length || cancelled) {
+              setTimeout(() => {
+                if (!cancelled) {
+                  setSatellites(sats);
+                  setIsLoading(false);
+                }
+              }, 500);
+            } else {
+              setTimeout(waitForAnimation, 100);
+            }
+          };
+          waitForAnimation();
+        }
+      } catch (err) {
+        console.error('[SKYPORT] Initialization failed:', err);
+        if (!cancelled) {
+          setLoadingText('[ERROR] Failed to initialize. Retrying...');
+          // Fallback: still show the app with whatever data we have
+          setTimeout(() => {
+            if (!cancelled) {
+              buildSatelliteList().then(sats => {
+                setSatellites(sats);
+                setIsLoading(false);
+              });
+            }
+          }, 2000);
+        }
+      }
+    })();
 
-  // Update satellite positions periodically
+    return () => {
+      cancelled = true;
+      clearInterval(typingInterval);
+    };
+  }, [buildSatelliteList]);
+
+  // Update satellite positions every second using real TLE propagation
   useEffect(() => {
-    if (satellites.length === 0) return;
+    if (satellites.length === 0 || !engineReady.current) return;
 
     const interval = setInterval(() => {
-      setSatellites(prev => prev.map(sat => ({
-        ...sat,
-        longitude: ((sat.longitude + (sat.velocity * 0.01)) % 360 + 180) % 360 - 180,
-        latitude: sat.latitude + Math.sin(Date.now() / 10000) * 0.01,
-      })));
+      setSatellites(prev => prev.map(sat => {
+        if (!sat.isReal || sat.special === 'L2_POINT') return sat;
+
+        const pos = computeSatellitePosition(sat.noradId);
+        if (!pos) return sat;
+
+        return {
+          ...sat,
+          latitude: pos.latitude,
+          longitude: pos.longitude,
+          altitude: pos.altitude,
+          velocity: pos.velocity,
+        };
+      }));
     }, 1000);
 
     return () => clearInterval(interval);

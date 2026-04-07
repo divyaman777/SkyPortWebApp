@@ -5,6 +5,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { Satellite, categoryColors, SatelliteCategory } from '@/lib/satellite-data';
+import { computeOrbitPath as computeRealOrbitPath, computeMoonPosition } from '@/lib/satellite-engine';
 
 // Detailed continent outlines as [lon, lat] coordinate arrays
 const CONTINENT_DATA: Record<string, number[][]> = {
@@ -317,13 +318,26 @@ function Earth() {
 // Observer location marker on Earth
 function ObserverMarker() {
   const markerRef = useRef<THREE.Group>(null);
-  // Default observer location (can be updated with real geolocation)
-  const observerLat = 40.7128; // New York
-  const observerLon = -74.0060;
-  
+  const [observerLat, setObserverLat] = useState(40.7128); // Default: New York
+  const [observerLon, setObserverLon] = useState(-74.0060);
+  const geoRequested = useRef(false);
+
+  // Request geolocation once
+  if (!geoRequested.current && typeof navigator !== 'undefined' && navigator.geolocation) {
+    geoRequested.current = true;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setObserverLat(pos.coords.latitude);
+        setObserverLon(pos.coords.longitude);
+        console.log(`[SKYPORT] Observer location: ${pos.coords.latitude.toFixed(2)}, ${pos.coords.longitude.toFixed(2)}`);
+      },
+      () => { console.log('[SKYPORT] Geolocation denied, using default (New York)'); }
+    );
+  }
+
   const position = useMemo(() => {
     return latLonToVector3(observerLat, observerLon, 2.03);
-  }, []);
+  }, [observerLat, observerLon]);
   
   useFrame((state) => {
     if (markerRef.current) {
@@ -374,28 +388,32 @@ const MOON_ORBIT_RADIUS = 8;
 interface MoonProps {
   isSelected: boolean;
   onMoonClick: () => void;
+  moonLat?: number;
+  moonLon?: number;
 }
 
 // Moon orbit inclination (slight tilt)
 const MOON_ORBIT_INCLINATION = 0.09; // ~5 degrees in radians
 
-function Moon({ isSelected, onMoonClick }: MoonProps) {
+function Moon({ isSelected, onMoonClick, moonLat, moonLon }: MoonProps) {
   const moonRef = useRef<THREE.Group>(null);
   const moonMeshRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
-  
-  useFrame((state) => {
+
+  useFrame(() => {
     if (moonRef.current) {
-      const time = state.clock.getElapsedTime() * 0.05;
-      // Position on orbit - must match moonOrbitPoints exactly
-      const x = Math.cos(time) * MOON_ORBIT_RADIUS;
-      const z = Math.sin(time) * MOON_ORBIT_RADIUS;
-      // Apply inclination - same formula as orbit path
-      const y = MOON_ORBIT_RADIUS * Math.sin(time) * MOON_ORBIT_INCLINATION;
-      
-      moonRef.current.position.x = x;
-      moonRef.current.position.z = z;
-      moonRef.current.position.y = y;
+      if (moonLat !== undefined && moonLon !== undefined) {
+        // Use real Moon position from astronomy-engine
+        const pos = latLonToVector3(moonLat, moonLon, MOON_ORBIT_RADIUS);
+        moonRef.current.position.lerp(pos, 0.05);
+      } else {
+        // Fallback: simple animated orbit
+        const time = Date.now() * 0.00005;
+        const x = Math.cos(time) * MOON_ORBIT_RADIUS;
+        const z = Math.sin(time) * MOON_ORBIT_RADIUS;
+        const y = MOON_ORBIT_RADIUS * Math.sin(time) * MOON_ORBIT_INCLINATION;
+        moonRef.current.position.set(x, y, z);
+      }
     }
     if (moonMeshRef.current) {
       moonMeshRef.current.rotation.y += 0.001;
@@ -533,45 +551,34 @@ function getOrbitType(altitude: number): 'LEO' | 'MEO' | 'GEO' {
   return 'GEO';
 }
 
-function SatelliteMarker({ 
-  satellite, 
-  isSelected, 
-  onClick, 
-  onPointerOver, 
+function SatelliteMarker({
+  satellite,
+  isSelected,
+  onClick,
+  onPointerOver,
   onPointerOut,
 }: SatelliteMarkerProps) {
   const earthRotGroupRef = useRef<THREE.Group>(null);
   const satelliteRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
-  
+
   const color = categoryColors[satellite.category];
   const isISS = satellite.category === 'SPACE_STATION';
-  
+
   const orbitRadius = getOrbitRadius(satellite.altitude);
-  const incRad = (satellite.inclination * Math.PI) / 180;
-  
-  // Satellite position calculation - must match OrbitPath exactly
-  useFrame((state) => {
-    // Rotate outer group with Earth (same as OrbitPath)
+
+  // Position satellite using real lat/lng from TLE propagation
+  useFrame(() => {
+    // Rotate outer group with Earth (so lat/lng coordinates stay aligned)
     if (earthRotGroupRef.current) {
       earthRotGroupRef.current.rotation.y = getEarthRotation();
     }
-    
-    // Move satellite along its orbit (in local space of the Earth-rotating group)
+
+    // Set satellite position from real lat/lng
     if (satelliteRef.current) {
-      const time = state.clock.getElapsedTime();
-      // Orbital speed - faster for lower orbits (Kepler's law)
-      const orbitalSpeed = 0.15 / Math.sqrt(orbitRadius);
-      // Satellite's orbital angle (its position along the orbit)
-      const orbitAngle = time * orbitalSpeed;
-      
-      // Calculate position - same formula as OrbitPath
-      const x = orbitRadius * Math.cos(orbitAngle);
-      const z = orbitRadius * Math.sin(orbitAngle);
-      // Apply inclination - tilts the orbit
-      const y = orbitRadius * Math.sin(orbitAngle) * Math.sin(incRad) * 0.5;
-      
-      satelliteRef.current.position.set(x, y, z);
+      const pos = latLonToVector3(satellite.latitude, satellite.longitude, orbitRadius);
+      // Lerp for smooth movement between position updates
+      satelliteRef.current.position.lerp(pos, 0.1);
     }
   });
   
@@ -681,40 +688,58 @@ interface OrbitPathProps {
 
 function OrbitPath({ satellite }: OrbitPathProps) {
   const orbitRef = useRef<THREE.Group>(null);
-  const orbitRadius = getOrbitRadius(satellite.altitude);
   const color = categoryColors[satellite.category];
-  const incRad = (satellite.inclination * Math.PI) / 180;
-  
-  // Generate orbit points - must match SatelliteMarker position calculation exactly
+  const isGeo = satellite.special === 'GEOSTATIONARY' || satellite.altitude > 35000;
+
+  // Compute real orbit path from TLE propagation
   const orbitPoints = useMemo(() => {
-    const points: THREE.Vector3[] = [];
-    
-    for (let i = 0; i <= 360; i += 2) {
-      const angle = (i * Math.PI) / 180;
-      const x = orbitRadius * Math.cos(angle);
-      const z = orbitRadius * Math.sin(angle);
-      // Apply inclination - tilts the orbit (same formula as SatelliteMarker)
-      const y = orbitRadius * Math.sin(angle) * Math.sin(incRad) * 0.5;
-      
-      points.push(new THREE.Vector3(x, y, z));
+    if (satellite.noradId <= 0) return [];
+
+    // For geostationary sats, draw an equatorial ring
+    if (isGeo) {
+      const geoRadius = getOrbitRadius(satellite.altitude);
+      const points: THREE.Vector3[] = [];
+      for (let i = 0; i <= 360; i += 2) {
+        const angle = (i * Math.PI) / 180;
+        points.push(new THREE.Vector3(
+          geoRadius * Math.cos(angle),
+          0,
+          geoRadius * Math.sin(angle)
+        ));
+      }
+      return points;
     }
-    return points;
-  }, [orbitRadius, incRad]);
-  
-  // Rotate with Earth so orbit stays fixed relative to Earth
+
+    // For LEO/MEO sats, compute 90 minutes of real positions
+    try {
+      const positions = computeRealOrbitPath(satellite.noradId, 92, 20);
+      if (positions.length < 2) return [];
+
+      return positions.map(pos => {
+        const radius = getOrbitRadius(pos.altitude);
+        return latLonToVector3(pos.latitude, pos.longitude, radius);
+      });
+    } catch {
+      return [];
+    }
+  }, [satellite.noradId, satellite.altitude, isGeo]);
+
+  // Rotate with Earth so orbit positions stay aligned with globe
   useFrame(() => {
     if (orbitRef.current) {
-      orbitRef.current.rotation.y = getEarthRotation();
+      orbitRef.current.rotation.y = isGeo ? 0 : getEarthRotation();
     }
   });
-  
+
+  if (orbitPoints.length < 2) return null;
+
   return (
     <group ref={orbitRef}>
-      <Line 
+      <Line
         points={orbitPoints}
         color={color}
         lineWidth={2}
-        opacity={0.8}
+        opacity={0.6}
         transparent
       />
     </group>
@@ -759,7 +784,7 @@ function Satellites({
 
   // When a satellite is selected, only show that satellite
   // Otherwise show all filtered satellites
-  const visibleSatellites = selectedSatellite 
+  const visibleSatellites = selectedSatellite
     ? filteredSatellites.filter(sat => sat.id === selectedSatellite.id)
     : filteredSatellites;
 
@@ -1015,34 +1040,50 @@ function BackgroundClick({ onBackgroundClick }: BackgroundClickProps) {
   );
 }
 
+// Inner component to use Three.js hooks (must be inside Canvas)
+function MoonPositionUpdater({ onMoonPosition }: { onMoonPosition: (lat: number, lon: number) => void }) {
+  const lastUpdate = useRef(0);
+
+  useFrame(() => {
+    const now = Date.now();
+    if (now - lastUpdate.current > 5000) { // Update every 5 seconds
+      lastUpdate.current = now;
+      computeMoonPosition().then(pos => {
+        onMoonPosition(pos.latitude, pos.longitude);
+      }).catch(() => {});
+    }
+  });
+
+  return null;
+}
+
 // Main component
-export function EarthScene({ 
-  satellites, 
-  selectedSatellite, 
+export function EarthScene({
+  satellites,
+  selectedSatellite,
   onSatelliteClick,
   onSatelliteHover,
-  filters 
+  filters
 }: EarthSceneProps) {
   const [moonSelected, setMoonSelected] = useState(false);
-  
+  const [moonPos, setMoonPos] = useState<{ lat: number; lon: number } | null>(null);
+
   const handleSatelliteClick = (satellite: Satellite) => {
     setMoonSelected(false);
     onSatelliteClick(satellite);
   };
-  
+
   const handleMoonClick = () => {
-    // Toggle moon selection
     setMoonSelected(prev => !prev);
   };
-  
+
   const handleBackgroundClick = () => {
-    // Deselect satellite and moon when clicking background
     setMoonSelected(false);
     if (selectedSatellite) {
-      onSatelliteClick(selectedSatellite); // This will toggle off
+      onSatelliteClick(selectedSatellite);
     }
   };
-  
+
   return (
     <Canvas
       camera={{ position: [0, 2, 6], fov: 45 }}
@@ -1053,13 +1094,21 @@ export function EarthScene({
       <directionalLight position={[5, 3, 5]} intensity={1.2} />
       <directionalLight position={[-5, -3, -5]} intensity={0.3} color="#00D4FF" />
       <pointLight position={[0, 0, 10]} intensity={0.5} color="#FFB300" />
-      
+
       {/* Invisible background sphere to catch clicks */}
       <BackgroundClick onBackgroundClick={handleBackgroundClick} />
-      
+
+      {/* Moon position updater */}
+      <MoonPositionUpdater onMoonPosition={(lat, lon) => setMoonPos({ lat, lon })} />
+
       <Suspense fallback={<LoadingFallback />}>
         <Earth />
-        <Moon isSelected={moonSelected} onMoonClick={handleMoonClick} />
+        <Moon
+          isSelected={moonSelected}
+          onMoonClick={handleMoonClick}
+          moonLat={moonPos?.lat}
+          moonLon={moonPos?.lon}
+        />
         <GridLines />
         <OrbitZones />
         <Satellites
@@ -1070,7 +1119,7 @@ export function EarthScene({
           filters={filters}
         />
       </Suspense>
-      
+
       <OrbitControls
         enablePan={false}
         enableZoom={true}

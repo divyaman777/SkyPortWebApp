@@ -1,4 +1,4 @@
-export type SatelliteCategory = 
+export type SatelliteCategory =
   | 'WEATHER_SAT'
   | 'SPACE_STATION'
   | 'AMATEUR_RADIO'
@@ -21,6 +21,13 @@ export interface Satellite {
   longitude: number;
   nextPass?: string; // countdown string
   signals?: SatelliteSignal[];
+  // Extended fields for real data
+  isReal?: boolean; // true for registry satellites with TLE data
+  registryId?: string; // maps to satellite-registry.ts entry
+  type?: string; // e.g. "Space Station", "Weather Satellite"
+  launchDate?: string;
+  country?: string;
+  special?: 'GEOSTATIONARY' | 'L2_POINT' | 'MOON';
 }
 
 export interface SatelliteSignal {

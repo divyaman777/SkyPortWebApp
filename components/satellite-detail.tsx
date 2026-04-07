@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, Radio, Tv, Antenna, Wifi } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { X, Radio, Tv, Antenna, Wifi, ExternalLink, RefreshCw, Image as ImageIcon } from 'lucide-react';
 import { Satellite, categoryColors } from '@/lib/satellite-data';
+import { REGISTRY_MAP, type SatelliteRegistryEntry, type DataFeed } from '@/lib/satellite-registry';
+import { cachedFetch } from '@/lib/api-cache';
 
 interface SatelliteDetailProps {
   satellite: Satellite | null;
@@ -320,13 +322,407 @@ function VideoStream({ satellite }: { satellite: Satellite }) {
   );
 }
 
-// Connect button with broadcast data display
+// ─── Real Data Feed Components ─────────────────────────────
+
+// ISS Live Stream + Crew
+function ISSDataFeed({ satellite }: { satellite: Satellite }) {
+  const [crew, setCrew] = useState<{ name: string; craft: string }[]>([]);
+  const [crewError, setCrewError] = useState(false);
+
+  useEffect(() => {
+    cachedFetch<{ people: { name: string; craft: string }[] }>(
+      'http://api.open-notify.org/astros.json',
+      'iss-crew',
+      3600000,
+      true
+    ).then(data => {
+      if (data?.people) {
+        setCrew(data.people.filter(p => p.craft === 'ISS'));
+      }
+    }).catch(() => setCrewError(true));
+  }, []);
+
+  return (
+    <div className="space-y-3">
+      {/* Live video embed */}
+      <div className="bg-[rgba(0,0,0,0.5)] border border-[rgba(0,255,65,0.3)] rounded overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-2 text-xs text-[#00FF41]">
+          <Tv className="w-3 h-3" />
+          <span>NASA HD LIVE STREAM</span>
+          <span className="ml-auto inline-block w-2 h-2 bg-[#FF4444] rounded-full animate-pulse" />
+          <span className="text-[#FF4444] text-[10px]">LIVE</span>
+        </div>
+        <div className="aspect-video">
+          <iframe
+            src="https://www.youtube.com/embed/xRPjKQtRXR8?autoplay=0&mute=1"
+            className="w-full h-full"
+            allow="accelerometer; autoplay; encrypted-media; gyroscope"
+            allowFullScreen
+            title="ISS Live Stream"
+          />
+        </div>
+      </div>
+
+      {/* Crew manifest */}
+      <div className="bg-[rgba(0,0,0,0.5)] border border-[rgba(0,212,255,0.3)] rounded p-3">
+        <div className="text-xs text-[#00D4FF] mb-2 flex items-center gap-2">
+          <span className="status-dot active" style={{ background: '#00D4FF', boxShadow: '0 0 6px #00D4FF' }} />
+          CREW MANIFEST ({crew.length})
+        </div>
+        {crewError ? (
+          <div className="text-xs text-[#FFB300]">[SIGNAL_LOST] Crew data unavailable</div>
+        ) : crew.length > 0 ? (
+          <div className="space-y-1">
+            {crew.map((person, i) => (
+              <div key={i} className="text-xs font-mono text-foreground">
+                <span className="text-muted-foreground">&gt;</span> {person.name}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-xs text-muted-foreground animate-pulse">Loading crew data...</div>
+        )}
+      </div>
+
+      {/* Live telemetry */}
+      <div className="bg-[rgba(0,0,0,0.5)] border border-[rgba(0,255,65,0.3)] rounded p-3 text-xs font-mono space-y-1">
+        <div className="text-[#00FF41]">LIVE TELEMETRY</div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">ALTITUDE:</span>
+          <span className="text-[#00FF41]">{satellite.altitude.toFixed(1)} km</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">VELOCITY:</span>
+          <span className="text-[#00D4FF]">{satellite.velocity.toFixed(2)} km/s</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">POSITION:</span>
+          <span className="text-foreground">
+            {Math.abs(satellite.latitude).toFixed(2)}°{satellite.latitude >= 0 ? 'N' : 'S'},{' '}
+            {Math.abs(satellite.longitude).toFixed(2)}°{satellite.longitude >= 0 ? 'E' : 'W'}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// GOES Weather Imagery
+function GOESDataFeed({ satellite }: { satellite: Satellite }) {
+  const [band, setBand] = useState<'GEOCOLOR' | 'IR' | 'WV'>('GEOCOLOR');
+  const [imageError, setImageError] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const satNum = satellite.name.includes('16') ? 'GOES16' : 'GOES18';
+  const bandUrls: Record<string, string> = {
+    GEOCOLOR: `https://cdn.star.nesdis.noaa.gov/${satNum}/ABI/FD/GEOCOLOR/latest.jpg`,
+    IR: `https://cdn.star.nesdis.noaa.gov/${satNum}/ABI/FD/13/latest.jpg`,
+    WV: `https://cdn.star.nesdis.noaa.gov/${satNum}/ABI/FD/09/latest.jpg`,
+  };
+
+  // Auto-refresh every 10 minutes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRefreshKey(k => k + 1);
+      setImageError(false);
+    }, 600000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="space-y-3">
+      {/* Band selector */}
+      <div className="flex gap-1">
+        {(['GEOCOLOR', 'IR', 'WV'] as const).map(b => (
+          <button
+            key={b}
+            onClick={() => { setBand(b); setImageError(false); }}
+            className={`flex-1 py-1.5 px-2 text-xs font-mono rounded transition-colors ${
+              band === b
+                ? 'bg-[rgba(255,179,0,0.2)] border border-[#FFB300] text-[#FFB300]'
+                : 'bg-[rgba(0,0,0,0.3)] border border-[rgba(255,179,0,0.2)] text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {b === 'GEOCOLOR' ? 'GeoColor' : b === 'IR' ? 'Infrared' : 'Water Vapor'}
+          </button>
+        ))}
+      </div>
+
+      {/* Weather image */}
+      <div className="bg-[rgba(0,0,0,0.5)] border border-[rgba(255,179,0,0.3)] rounded overflow-hidden">
+        <div className="flex items-center justify-between px-3 py-2 text-xs">
+          <span className="text-[#FFB300]">
+            <ImageIcon className="w-3 h-3 inline mr-1" />
+            FULL DISK {band}
+          </span>
+          <button onClick={() => { setRefreshKey(k => k + 1); setImageError(false); }} className="text-muted-foreground hover:text-[#FFB300]">
+            <RefreshCw className="w-3 h-3" />
+          </button>
+        </div>
+        {imageError ? (
+          <div className="aspect-video flex items-center justify-center text-xs text-[#FFB300]">
+            [SIGNAL_LOST] Image unavailable — Retrying...
+          </div>
+        ) : (
+          <img
+            key={`${band}-${refreshKey}`}
+            src={bandUrls[band]}
+            alt={`${satNum} ${band}`}
+            className="w-full"
+            onError={() => setImageError(true)}
+            loading="lazy"
+          />
+        )}
+        <div className="px-3 py-1 text-[10px] text-muted-foreground">
+          Updates every 10 minutes | Source: NOAA NESDIS
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// NASA Images API feed (Hubble / JWST)
+function NASAImagesFeed({ query, label }: { query: string; label: string }) {
+  const [images, setImages] = useState<{ title: string; url: string; description: string; date: string }[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    cachedFetch<{ collection: { items: { data: { title: string; description: string; date_created: string }[]; links: { href: string }[] }[] } }>(
+      `https://images-api.nasa.gov/search?q=${encodeURIComponent(query)}&media_type=image&page_size=5`,
+      `nasa-images-${query}`,
+      86400000 // 24 hour cache
+    ).then(data => {
+      if (data?.collection?.items) {
+        const parsed = data.collection.items
+          .filter(item => item.links?.[0]?.href && item.data?.[0])
+          .map(item => ({
+            title: item.data[0].title,
+            url: item.links[0].href,
+            description: (item.data[0].description || '').substring(0, 200),
+            date: item.data[0].date_created?.substring(0, 10) || 'Unknown',
+          }));
+        setImages(parsed);
+      }
+      setLoading(false);
+    }).catch(() => { setError(true); setLoading(false); });
+  }, [query]);
+
+  if (loading) return <div className="text-xs text-muted-foreground animate-pulse p-3">Loading {label} images...</div>;
+  if (error || images.length === 0) return <div className="text-xs text-[#FFB300] p-3">[SIGNAL_LOST] {label} images unavailable</div>;
+
+  const img = images[currentIndex];
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-[rgba(0,0,0,0.5)] border border-[rgba(0,212,255,0.3)] rounded overflow-hidden">
+        <div className="flex items-center justify-between px-3 py-2 text-xs">
+          <span className="text-[#00D4FF]">
+            <ImageIcon className="w-3 h-3 inline mr-1" />
+            {label}
+          </span>
+          <span className="text-muted-foreground">{currentIndex + 1}/{images.length}</span>
+        </div>
+        <img
+          src={img.url}
+          alt={img.title}
+          className="w-full aspect-video object-cover"
+          loading="lazy"
+        />
+        <div className="px-3 py-2 space-y-1">
+          <div className="text-xs text-foreground font-bold">{img.title}</div>
+          <div className="text-[10px] text-muted-foreground">{img.date}</div>
+          {img.description && (
+            <div className="text-[10px] text-muted-foreground leading-relaxed">{img.description}...</div>
+          )}
+        </div>
+      </div>
+      {images.length > 1 && (
+        <button
+          onClick={() => setCurrentIndex((currentIndex + 1) % images.length)}
+          className="w-full py-2 text-xs font-mono text-[#00D4FF] bg-[rgba(0,212,255,0.1)] border border-[rgba(0,212,255,0.3)] rounded hover:bg-[rgba(0,212,255,0.2)]"
+        >
+          VIEW NEXT IMAGE →
+        </button>
+      )}
+    </div>
+  );
+}
+
+// SatNOGS / NOAA-19 / AO-91 data — shows audio visualizer + frequencies + SatNOGS link
+function SatNOGSFeed({ satellite }: { satellite: Satellite }) {
+  return (
+    <div className="space-y-3">
+      {/* Live audio visualizer for the radio signal */}
+      <AudioStream satellite={satellite} />
+
+      <div className="bg-[rgba(0,0,0,0.5)] border border-[rgba(0,212,255,0.3)] rounded p-3">
+        <div className="text-xs text-[#00D4FF] mb-2">RADIO FREQUENCIES</div>
+        {satellite.signals?.map((sig, i) => (
+          <div key={i} className="text-xs font-mono text-foreground mb-1">
+            <span className="text-muted-foreground">&gt;</span> {sig.frequency || 'N/A'} — {sig.mode || sig.type}
+          </div>
+        ))}
+      </div>
+
+      <a
+        href={`https://network.satnogs.org/observations/?satellite__norad_cat_id=${satellite.noradId}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2 w-full py-2 px-3 text-xs font-mono text-[#00D4FF] bg-[rgba(0,212,255,0.1)] border border-[rgba(0,212,255,0.3)] rounded hover:bg-[rgba(0,212,255,0.2)]"
+      >
+        <ExternalLink className="w-3 h-3" />
+        VIEW ON SATNOGS NETWORK →
+      </a>
+    </div>
+  );
+}
+
+// Landsat data feed — earth observation imagery + links
+function LandsatFeed({ satellite }: { satellite: Satellite }) {
+  return (
+    <div className="space-y-3">
+      {/* Live earth observation video simulation */}
+      <VideoStream satellite={satellite} />
+      <div className="bg-[rgba(0,0,0,0.5)] border border-[rgba(255,140,0,0.3)] rounded p-3 text-xs">
+        <div className="text-[#FF8C00] mb-2">EARTH OBSERVATION DATA</div>
+        <div className="text-muted-foreground mb-2">
+          Landsat 9 captures multispectral imagery of Earth&apos;s surface in 11 spectral bands.
+        </div>
+        <div className="grid grid-cols-2 gap-1 text-muted-foreground">
+          <span>SWATH:</span><span className="text-[#FF8C00]">185 km</span>
+          <span>RESOLUTION:</span><span className="text-[#FF8C00]">15-100 m</span>
+          <span>REVISIT:</span><span className="text-[#FF8C00]">16 days</span>
+          <span>BANDS:</span><span className="text-[#FF8C00]">11 spectral</span>
+        </div>
+      </div>
+      <a
+        href="https://landsat.gsfc.nasa.gov/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2 w-full py-2 px-3 text-xs font-mono text-[#FF8C00] bg-[rgba(255,140,0,0.1)] border border-[rgba(255,140,0,0.3)] rounded hover:bg-[rgba(255,140,0,0.2)]"
+      >
+        <ExternalLink className="w-3 h-3" />
+        NASA LANDSAT SCIENCE →
+      </a>
+      <a
+        href="https://earthexplorer.usgs.gov/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2 w-full py-2 px-3 text-xs font-mono text-[#FF8C00] bg-[rgba(255,140,0,0.1)] border border-[rgba(255,140,0,0.3)] rounded hover:bg-[rgba(255,140,0,0.2)]"
+      >
+        <ExternalLink className="w-3 h-3" />
+        USGS EARTHEXPLORER →
+      </a>
+    </div>
+  );
+}
+
+// Moon data feed — phase visualization + stats
+function MoonDataFeed({ satellite }: { satellite: Satellite }) {
+  const [phase, setPhase] = useState({ name: 'Waxing Crescent', illumination: 0.35, angle: 45 });
+
+  useEffect(() => {
+    // Compute approximate moon phase from current date
+    // Synodic month = 29.53059 days, known new moon: Jan 6, 2000
+    const now = new Date();
+    const knownNew = new Date(2000, 0, 6, 18, 14, 0); // Jan 6, 2000 18:14 UTC
+    const daysSince = (now.getTime() - knownNew.getTime()) / 86400000;
+    const synodicMonth = 29.53059;
+    const cycleProgress = ((daysSince % synodicMonth) + synodicMonth) % synodicMonth;
+    const illum = 0.5 * (1 - Math.cos((cycleProgress / synodicMonth) * 2 * Math.PI));
+    const angleVal = (cycleProgress / synodicMonth) * 360;
+
+    let phaseName = 'New Moon';
+    if (cycleProgress < 1.85) phaseName = 'New Moon';
+    else if (cycleProgress < 7.38) phaseName = 'Waxing Crescent';
+    else if (cycleProgress < 9.23) phaseName = 'First Quarter';
+    else if (cycleProgress < 14.77) phaseName = 'Waxing Gibbous';
+    else if (cycleProgress < 16.61) phaseName = 'Full Moon';
+    else if (cycleProgress < 22.15) phaseName = 'Waning Gibbous';
+    else if (cycleProgress < 23.99) phaseName = 'Third Quarter';
+    else phaseName = 'Waning Crescent';
+
+    setPhase({ name: phaseName, illumination: illum, angle: angleVal });
+  }, []);
+
+  // CSS moon phase: circle with shadow overlay
+  const isWaxing = phase.angle <= 180;
+  const shadowPercent = Math.abs(Math.cos((phase.angle / 180) * Math.PI));
+
+  return (
+    <div className="space-y-3">
+      {/* Moon phase visual */}
+      <div className="bg-[rgba(0,0,0,0.5)] border border-[rgba(200,200,200,0.3)] rounded p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2 text-[#cccccc]">
+            <span className="status-dot active" style={{ background: '#ccc', boxShadow: '0 0 6px #aaa' }} />
+            <span className="text-xs font-mono">LUNAR_PHASE</span>
+          </div>
+          <span className="text-xs font-mono text-[#FFB300]">{phase.name.toUpperCase()}</span>
+        </div>
+
+        {/* Moon disc */}
+        <div className="flex justify-center mb-3">
+          <div className="relative w-24 h-24 rounded-full overflow-hidden" style={{ background: '#e8e8d0' }}>
+            {/* Shadow side */}
+            <div
+              className="absolute inset-0 rounded-full"
+              style={{
+                background: isWaxing
+                  ? `linear-gradient(to right, #111 0%, #111 ${shadowPercent * 50}%, transparent ${shadowPercent * 50}%)`
+                  : `linear-gradient(to left, #111 0%, #111 ${shadowPercent * 50}%, transparent ${shadowPercent * 50}%)`,
+              }}
+            />
+            {/* Crater textures */}
+            <div className="absolute rounded-full bg-[rgba(0,0,0,0.12)]" style={{ width: 18, height: 18, top: 15, left: 40 }} />
+            <div className="absolute rounded-full bg-[rgba(0,0,0,0.10)]" style={{ width: 12, height: 12, top: 50, left: 25 }} />
+            <div className="absolute rounded-full bg-[rgba(0,0,0,0.08)]" style={{ width: 22, height: 22, top: 55, left: 55 }} />
+            <div className="absolute rounded-full bg-[rgba(0,0,0,0.10)]" style={{ width: 8, height: 8, top: 30, left: 65 }} />
+          </div>
+        </div>
+
+        {/* Moon stats */}
+        <div className="grid grid-cols-2 gap-1 text-xs font-mono">
+          <span className="text-muted-foreground">ILLUMINATION:</span>
+          <span className="text-[#FFB300]">{(phase.illumination * 100).toFixed(1)}%</span>
+          <span className="text-muted-foreground">DISTANCE:</span>
+          <span className="text-[#cccccc]">{satellite.altitude.toFixed(0)} km</span>
+          <span className="text-muted-foreground">PHASE ANGLE:</span>
+          <span className="text-[#cccccc]">{phase.angle.toFixed(1)}°</span>
+          <span className="text-muted-foreground">POSITION:</span>
+          <span className="text-[#cccccc]">{satellite.latitude.toFixed(2)}°, {satellite.longitude.toFixed(2)}°</span>
+        </div>
+      </div>
+
+      <div className="bg-[rgba(0,0,0,0.5)] border border-[rgba(200,200,200,0.3)] rounded p-3 text-xs">
+        <div className="text-[#cccccc] mb-2">LUNAR DATA</div>
+        <div className="text-muted-foreground">
+          Earth&apos;s natural satellite. Orbital period: 27.3 days. Synodic period: 29.53 days.
+        </div>
+      </div>
+      <a
+        href="https://svs.gsfc.nasa.gov/4955"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2 w-full py-2 px-3 text-xs font-mono text-[#cccccc] bg-[rgba(200,200,200,0.1)] border border-[rgba(200,200,200,0.3)] rounded hover:bg-[rgba(200,200,200,0.2)]"
+      >
+        <ExternalLink className="w-3 h-3" />
+        NASA MOON PHASE VISUALIZATION →
+      </a>
+    </div>
+  );
+}
+
+// Connect button with real data display
 function ConnectButton({ satellite }: { satellite: Satellite }) {
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
-  
-  const mediaType = getMediaType(satellite.category);
-  
+
+  const registryEntry = satellite.registryId ? REGISTRY_MAP.get(satellite.registryId) : undefined;
+
   const handleConnect = () => {
     setConnecting(true);
     setTimeout(() => {
@@ -334,15 +730,49 @@ function ConnectButton({ satellite }: { satellite: Satellite }) {
       setConnected(true);
     }, 1500);
   };
-  
+
   const handleDisconnect = () => {
     setConnected(false);
   };
-  
+
+  // Determine which data feed to show
+  const renderDataFeed = () => {
+    const id = satellite.registryId || satellite.id;
+
+    switch (id) {
+      case 'iss':
+        return <ISSDataFeed satellite={satellite} />;
+      case 'goes-16':
+      case 'goes-18':
+        return <GOESDataFeed satellite={satellite} />;
+      case 'hubble':
+        return <NASAImagesFeed query="hubble" label="HUBBLE IMAGES" />;
+      case 'jwst':
+        return <NASAImagesFeed query="james webb space telescope" label="JWST IMAGES" />;
+      case 'noaa-19':
+      case 'ao-91':
+        return <SatNOGSFeed satellite={satellite} />;
+      case 'landsat-9':
+        return <LandsatFeed satellite={satellite} />;
+      case 'moon':
+        return <MoonDataFeed satellite={satellite} />;
+      default:
+        // Fallback: show original simulated data streams
+        const mediaType = getMediaType(satellite.category);
+        return (
+          <>
+            {mediaType === 'text' && <TextDataStream satellite={satellite} />}
+            {mediaType === 'audio' && <AudioStream satellite={satellite} />}
+            {mediaType === 'video' && <VideoStream satellite={satellite} />}
+          </>
+        );
+    }
+  };
+
   return (
     <div className="space-y-3">
       {!connected && !connecting && (
-        <button 
+        <button
           onClick={handleConnect}
           className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded text-sm font-bold transition-all bg-[rgba(0,212,255,0.15)] border border-[#00D4FF] text-[#00D4FF] hover:bg-[rgba(0,212,255,0.25)]"
         >
@@ -350,17 +780,17 @@ function ConnectButton({ satellite }: { satellite: Satellite }) {
           <span>CONNECT TO SATELLITE</span>
         </button>
       )}
-      
+
       {connecting && (
-        <button 
+        <button
           disabled
           className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded text-sm font-bold bg-[rgba(255,179,0,0.2)] border border-[#FFB300] text-[#FFB300] cursor-wait"
         >
           <Wifi className="w-5 h-5 animate-pulse" />
-          <span>CONNECTING...</span>
+          <span>ESTABLISHING LINK...</span>
         </button>
       )}
-      
+
       {connected && (
         <>
           {/* Status bar */}
@@ -370,17 +800,15 @@ function ConnectButton({ satellite }: { satellite: Satellite }) {
               <span className="text-[#00FF41] text-sm font-mono">CONNECTED</span>
             </div>
             <span className="text-xs text-muted-foreground font-mono">
-              {mediaType.toUpperCase()} STREAM
+              {registryEntry ? 'LIVE DATA' : 'TELEMETRY'}
             </span>
           </div>
-          
-          {/* Media content based on type */}
-          {mediaType === 'text' && <TextDataStream satellite={satellite} />}
-          {mediaType === 'audio' && <AudioStream satellite={satellite} />}
-          {mediaType === 'video' && <VideoStream satellite={satellite} />}
-          
+
+          {/* Real data feed */}
+          {renderDataFeed()}
+
           {/* Disconnect button */}
-          <button 
+          <button
             onClick={handleDisconnect}
             className="w-full flex items-center justify-center gap-3 py-2 px-4 rounded text-sm font-bold transition-all bg-[rgba(255,68,68,0.15)] border border-[#FF4444] text-[#FF4444] hover:bg-[rgba(255,68,68,0.25)]"
           >
@@ -428,19 +856,37 @@ export function SatelliteDetail({ satellite, onClose }: SatelliteDetailProps) {
               <span className="text-muted-foreground">NORAD_ID:</span>
               <span className="text-[#00D4FF] font-vt323">{satellite.noradId}</span>
             </div>
+            {satellite.type && (
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">TYPE:</span>
+                <span className="text-foreground">{satellite.type}</span>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">CATEGORY:</span>
               <span style={{ color }}>{satellite.category}</span>
             </div>
+            {satellite.launchDate && (
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">LAUNCH:</span>
+                <span className="text-foreground">{satellite.launchDate}</span>
+              </div>
+            )}
+            {satellite.country && (
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">ORIGIN:</span>
+                <span className="text-foreground">{satellite.country}</span>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">STATUS:</span>
               <span className={`px-2 py-0.5 rounded text-xs ${satellite.status === 'ACTIVE' ? 'bg-[rgba(0,255,65,0.2)] text-[#00FF41]' : 'bg-[rgba(102,102,102,0.2)] text-[#666]'}`}>
                 [{satellite.status}]
               </span>
-              {satellite.inView && (
-                <span className="flex items-center gap-1 text-[#00FF41] text-xs">
-                  <span className="status-dot active" />
-                  IN_VIEW
+              {satellite.isReal && (
+                <span className="flex items-center gap-1 text-[#00D4FF] text-xs">
+                  <span className="status-dot active" style={{ background: '#00D4FF', boxShadow: '0 0 6px #00D4FF' }} />
+                  LIVE_TLE
                 </span>
               )}
             </div>
