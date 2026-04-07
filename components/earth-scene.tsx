@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { Satellite, categoryColors, SatelliteCategory } from '@/lib/satellite-data';
 import { computeECIPosition, computeOrbitPathECI, computeMoonPositionECI, computeMoonOrbitNormal, getJWSTPositionECI, getGMST } from '@/lib/satellite-engine';
 import { trackMoonClick, trackOrbitZoneClick } from '@/lib/analytics';
+import { registerPresence, subscribePresence, type ActiveUser } from '@/lib/presence';
 
 // ─── GeoJSON Border Loading ─────────────────────────────────
 const WORLD_GEOJSON_URL = 'https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json';
@@ -303,6 +304,9 @@ function Earth() {
         />
       </mesh>
 
+      {/* Live user presence dots */}
+      <UserPresenceDots />
+
       {/* Observer location marker */}
       <ObserverMarker />
     </group>
@@ -315,8 +319,10 @@ function ObserverMarker() {
   const [observerLat, setObserverLat] = useState(40.7128); // Default: New York
   const [observerLon, setObserverLon] = useState(-74.0060);
 
-  // Get approximate location from IP address (no permission popup)
+  // Get approximate location from IP address (no permission popup) and register presence
   useEffect(() => {
+    let cleanup: (() => void) | null = null;
+
     fetch('https://ipapi.co/json/')
       .then(r => r.json())
       .then(data => {
@@ -324,11 +330,15 @@ function ObserverMarker() {
           setObserverLat(data.latitude);
           setObserverLon(data.longitude);
           console.log(`[SKYPORT] Observer location (IP): ${data.latitude.toFixed(2)}, ${data.longitude.toFixed(2)} (${data.city || 'unknown'})`);
+          // Register presence in Firebase for live user density map
+          cleanup = registerPresence(data.latitude, data.longitude);
         }
       })
       .catch(() => {
         console.log('[SKYPORT] IP geolocation failed, using default (New York)');
       });
+
+    return () => { if (cleanup) cleanup(); };
   }, []);
 
   const position = useMemo(() => {
@@ -368,6 +378,37 @@ function ObserverMarker() {
           <span className="text-[#FF4444] font-mono">YOU</span>
         </div>
       </Html>
+    </group>
+  );
+}
+
+// Live user presence dots — tiny subtle dots showing other active users on the globe
+function UserPresenceDots() {
+  const [users, setUsers] = useState<ActiveUser[]>([]);
+
+  useEffect(() => {
+    const unsubscribe = subscribePresence(setUsers);
+    return unsubscribe;
+  }, []);
+
+  // Pre-compute positions for all users, placed just above Earth surface
+  const dots = useMemo(() => {
+    return users.map((u, i) => ({
+      key: `${u.lat.toFixed(1)}-${u.lon.toFixed(1)}-${i}`,
+      position: latLonToVector3(u.lat, u.lon, 2.015),
+    }));
+  }, [users]);
+
+  if (dots.length === 0) return null;
+
+  return (
+    <group>
+      {dots.map(dot => (
+        <mesh key={dot.key} position={dot.position}>
+          <sphereGeometry args={[0.012, 6, 6]} />
+          <meshBasicMaterial color="#00D4FF" transparent opacity={0.6} />
+        </mesh>
+      ))}
     </group>
   );
 }
