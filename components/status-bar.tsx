@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Eye, Rocket, Heart } from 'lucide-react';
+import { Rocket } from 'lucide-react';
 
 interface StatusBarProps {
   overheadCount: number;
@@ -121,23 +121,26 @@ export function StatusBar({ overheadCount }: StatusBarProps) {
         </div>
 
         {/* Right - Overhead count and support */}
-        <div className="flex items-center gap-3 text-xs">
+        <div className="flex items-center gap-2 text-xs">
           <div className="hidden sm:flex items-center gap-2">
             <span className="text-muted-foreground">overhead_now:</span>
             <span className="text-[#00FF41] font-vt323 text-base glow-green">{overheadCount}</span>
             <span className="text-muted-foreground">objects</span>
           </div>
           
-          {/* Support CTA - trendy and visible */}
+          <span className="text-muted-foreground hidden sm:inline">|</span>
+          
+          {/* Support CTA - terminal style */}
           <a
             href="https://buymeacoffee.com/skyport"
             target="_blank"
             rel="noopener noreferrer"
-            className="group flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-[rgba(255,180,0,0.15)] to-[rgba(255,100,0,0.15)] border border-[rgba(255,180,0,0.3)] hover:border-[rgba(255,180,0,0.6)] hover:from-[rgba(255,180,0,0.25)] hover:to-[rgba(255,100,0,0.25)] transition-all duration-300"
+            className="group flex items-center gap-1.5 px-2 py-1 glass-panel rounded hover:border-[#FFB300] transition-all duration-200"
           >
-            <Rocket className="w-3.5 h-3.5 text-[#FFB400] group-hover:animate-bounce" />
-            <span className="text-[#FFB400] font-medium">Fuel the mission</span>
-            <Heart className="w-3 h-3 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity fill-red-400" />
+            <Rocket className="w-3 h-3 text-[#FFB300]" />
+            <span className="text-muted-foreground group-hover:text-[#FFB300] transition-colors">[</span>
+            <span className="text-[#FFB300] group-hover:glow-amber transition-all">FUEL_MISSION</span>
+            <span className="text-muted-foreground group-hover:text-[#FFB300] transition-colors">]</span>
           </a>
         </div>
       </div>
