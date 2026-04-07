@@ -5,6 +5,7 @@ import { Rocket } from 'lucide-react';
 
 interface StatusBarProps {
   overheadCount: number;
+  onSupportClick?: () => void;
 }
 
 function MiniWorldMap() {
