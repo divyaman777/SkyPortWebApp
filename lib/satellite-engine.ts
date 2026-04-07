@@ -489,17 +489,17 @@ export function computeECIPosition(noradId: number, date?: Date): { eciX: number
   return { eciX: posEci.x, eciY: posEci.y, eciZ: posEci.z, altitude, velocity };
 }
 
-/** Compute one full orbit in ECI coordinates */
-export function computeOrbitPathECI(noradId: number, stepSeconds: number = 30): { eciX: number; eciY: number; eciZ: number; altitude: number }[] {
+/** Compute one full orbit in ECI coordinates, starting from given epoch (or now) */
+export function computeOrbitPathECI(noradId: number, stepSeconds: number = 30, startDate?: Date): { eciX: number; eciY: number; eciZ: number; altitude: number }[] {
   const tle = tleStore.get(noradId);
   if (!tle) return [];
 
   const periodMinutes = (2 * Math.PI) / tle.satrec.no;
-  const now = Date.now();
+  const epoch = startDate ? startDate.getTime() : Date.now();
   const points: { eciX: number; eciY: number; eciZ: number; altitude: number }[] = [];
 
   for (let t = 0; t <= periodMinutes * 60; t += stepSeconds) {
-    const date = new Date(now + t * 1000);
+    const date = new Date(epoch + t * 1000);
     const posVel = satellite.propagate(tle.satrec, date);
     if (!posVel.position || typeof posVel.position === 'boolean') continue;
     const posEci = posVel.position as satellite.EciVec3<number>;

@@ -560,6 +560,501 @@ function getOrbitType(altitude: number): 'LEO' | 'MEO' | 'GEO' {
   return 'GEO';
 }
 
+// ─── Satellite 3D Models ────────────────────────────────────
+// Detailed models for registry satellites, category-based for generics
+
+// ISS — cylindrical modules + 4 large accordion-style solar array wings + truss
+function ISSModel({ color }: { color: string }) {
+  const panelColor = '#1a3a5c';
+  const panelEmissive = '#0a2040';
+  return (
+    <group scale={1.8}>
+      {/* Main pressurized module (Zarya-like) */}
+      <mesh rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.025, 0.025, 0.12, 12]} />
+        <meshStandardMaterial color="#e8e4dc" roughness={0.6} metalness={0.3} emissive="#e8e4dc" emissiveIntensity={0.15} />
+      </mesh>
+      {/* Forward module */}
+      <mesh position={[0.07, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.02, 0.022, 0.04, 12]} />
+        <meshStandardMaterial color="#d4cfc5" roughness={0.5} metalness={0.3} emissive="#d4cfc5" emissiveIntensity={0.1} />
+      </mesh>
+      {/* Truss (horizontal backbone) */}
+      <mesh>
+        <boxGeometry args={[0.02, 0.008, 0.28]} />
+        <meshStandardMaterial color="#b0a898" roughness={0.7} metalness={0.4} emissive="#b0a898" emissiveIntensity={0.1} />
+      </mesh>
+      {/* Solar array wing 1 (port far) */}
+      <mesh position={[0, 0, 0.12]}>
+        <boxGeometry args={[0.1, 0.003, 0.06]} />
+        <meshStandardMaterial color={panelColor} roughness={0.3} metalness={0.6} emissive={panelEmissive} emissiveIntensity={0.4} />
+      </mesh>
+      {/* Solar array wing 2 (port near) */}
+      <mesh position={[0, 0, 0.06]}>
+        <boxGeometry args={[0.1, 0.003, 0.04]} />
+        <meshStandardMaterial color={panelColor} roughness={0.3} metalness={0.6} emissive={panelEmissive} emissiveIntensity={0.4} />
+      </mesh>
+      {/* Solar array wing 3 (starboard near) */}
+      <mesh position={[0, 0, -0.06]}>
+        <boxGeometry args={[0.1, 0.003, 0.04]} />
+        <meshStandardMaterial color={panelColor} roughness={0.3} metalness={0.6} emissive={panelEmissive} emissiveIntensity={0.4} />
+      </mesh>
+      {/* Solar array wing 4 (starboard far) */}
+      <mesh position={[0, 0, -0.12]}>
+        <boxGeometry args={[0.1, 0.003, 0.06]} />
+        <meshStandardMaterial color={panelColor} roughness={0.3} metalness={0.6} emissive={panelEmissive} emissiveIntensity={0.4} />
+      </mesh>
+      {/* Docking port indicators */}
+      <mesh position={[0.09, 0, 0]}>
+        <sphereGeometry args={[0.006, 8, 8]} />
+        <meshStandardMaterial color="#cccccc" emissive="#aaaaaa" emissiveIntensity={0.3} />
+      </mesh>
+      <mesh position={[-0.065, 0, 0]}>
+        <sphereGeometry args={[0.006, 8, 8]} />
+        <meshStandardMaterial color="#cccccc" emissive="#aaaaaa" emissiveIntensity={0.3} />
+      </mesh>
+      {/* Radiator panels (copper/gold tint) */}
+      <mesh position={[0.03, 0.015, 0.03]} rotation={[0, 0.3, 0]}>
+        <boxGeometry args={[0.04, 0.002, 0.015]} />
+        <meshStandardMaterial color="#c8956c" roughness={0.4} metalness={0.7} emissive="#c8956c" emissiveIntensity={0.15} />
+      </mesh>
+      <mesh position={[0.03, 0.015, -0.03]} rotation={[0, -0.3, 0]}>
+        <boxGeometry args={[0.04, 0.002, 0.015]} />
+        <meshStandardMaterial color="#c8956c" roughness={0.4} metalness={0.7} emissive="#c8956c" emissiveIntensity={0.15} />
+      </mesh>
+    </group>
+  );
+}
+
+// Hubble — silver cylinder + aperture door + two rectangular solar panels
+function HubbleModel() {
+  return (
+    <group scale={1.4}>
+      {/* Main tube (silver metallic) */}
+      <mesh rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.03, 0.03, 0.14, 16]} />
+        <meshStandardMaterial color="#c0c0c0" roughness={0.25} metalness={0.85} emissive="#808080" emissiveIntensity={0.1} />
+      </mesh>
+      {/* Aperture door (darker ring at front) */}
+      <mesh position={[0.07, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.032, 0.028, 0.01, 16]} />
+        <meshStandardMaterial color="#555555" roughness={0.4} metalness={0.8} emissive="#333333" emissiveIntensity={0.15} />
+      </mesh>
+      {/* Aft shroud (slightly wider) */}
+      <mesh position={[-0.06, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.035, 0.032, 0.03, 16]} />
+        <meshStandardMaterial color="#aaaaaa" roughness={0.3} metalness={0.8} emissive="#777777" emissiveIntensity={0.1} />
+      </mesh>
+      {/* Solar panel left */}
+      <mesh position={[0, 0, 0.055]}>
+        <boxGeometry args={[0.08, 0.003, 0.035]} />
+        <meshStandardMaterial color="#1a2a4a" roughness={0.3} metalness={0.5} emissive="#0a1530" emissiveIntensity={0.4} />
+      </mesh>
+      {/* Solar panel right */}
+      <mesh position={[0, 0, -0.055]}>
+        <boxGeometry args={[0.08, 0.003, 0.035]} />
+        <meshStandardMaterial color="#1a2a4a" roughness={0.3} metalness={0.5} emissive="#0a1530" emissiveIntensity={0.4} />
+      </mesh>
+      {/* High-gain antenna arm */}
+      <mesh position={[0.02, 0.035, 0]} rotation={[0, 0, 0.2]}>
+        <cylinderGeometry args={[0.002, 0.002, 0.04, 6]} />
+        <meshStandardMaterial color="#cccccc" roughness={0.5} metalness={0.6} />
+      </mesh>
+      <mesh position={[0.03, 0.05, 0]}>
+        <sphereGeometry args={[0.008, 8, 8]} />
+        <meshStandardMaterial color="#dddddd" roughness={0.4} metalness={0.7} emissive="#aaaaaa" emissiveIntensity={0.15} />
+      </mesh>
+    </group>
+  );
+}
+
+// GOES-16/18 — boxy bus + single large solar wing + ABI instrument
+function GOESModel() {
+  return (
+    <group scale={1.3}>
+      {/* Spacecraft bus */}
+      <mesh>
+        <boxGeometry args={[0.06, 0.05, 0.05]} />
+        <meshStandardMaterial color="#e0ddd5" roughness={0.5} metalness={0.3} emissive="#c0bdb5" emissiveIntensity={0.1} />
+      </mesh>
+      {/* ABI instrument (dark lens on nadir face) */}
+      <mesh position={[0, -0.028, 0]}>
+        <cylinderGeometry args={[0.015, 0.012, 0.008, 12]} />
+        <meshStandardMaterial color="#222222" roughness={0.2} metalness={0.9} emissive="#111111" emissiveIntensity={0.2} />
+      </mesh>
+      {/* GLM (smaller instrument beside ABI) */}
+      <mesh position={[0.015, -0.028, 0.015]}>
+        <cylinderGeometry args={[0.006, 0.006, 0.006, 8]} />
+        <meshStandardMaterial color="#333333" roughness={0.3} metalness={0.8} />
+      </mesh>
+      {/* Single large solar array (extending to one side) */}
+      <mesh position={[0, 0, 0.08]}>
+        <boxGeometry args={[0.08, 0.003, 0.08]} />
+        <meshStandardMaterial color="#1a2a4a" roughness={0.3} metalness={0.5} emissive="#0a1530" emissiveIntensity={0.4} />
+      </mesh>
+      {/* Solar array yoke/arm */}
+      <mesh position={[0, 0, 0.04]}>
+        <boxGeometry args={[0.006, 0.006, 0.03]} />
+        <meshStandardMaterial color="#999999" roughness={0.5} metalness={0.5} />
+      </mesh>
+      {/* Antenna dish */}
+      <mesh position={[-0.035, 0.01, 0]} rotation={[0, 0, Math.PI / 6]}>
+        <coneGeometry args={[0.015, 0.01, 12]} />
+        <meshStandardMaterial color="#dddddd" roughness={0.4} metalness={0.6} emissive="#aaaaaa" emissiveIntensity={0.1} />
+      </mesh>
+      {/* Gold Kapton thermal foil accents */}
+      <mesh position={[0.032, 0, 0]}>
+        <boxGeometry args={[0.002, 0.048, 0.048]} />
+        <meshStandardMaterial color="#c8a832" roughness={0.35} metalness={0.8} emissive="#8a7420" emissiveIntensity={0.15} />
+      </mesh>
+    </group>
+  );
+}
+
+// NOAA-19 — tall slender bus + single solar wing + AVHRR sensor
+function NOAAModel() {
+  return (
+    <group scale={1.3}>
+      {/* Tall slender spacecraft bus */}
+      <mesh>
+        <boxGeometry args={[0.03, 0.07, 0.03]} />
+        <meshStandardMaterial color="#d8d5cc" roughness={0.5} metalness={0.3} emissive="#b8b5ac" emissiveIntensity={0.1} />
+      </mesh>
+      {/* Single solar wing */}
+      <mesh position={[0, 0, 0.055]}>
+        <boxGeometry args={[0.06, 0.003, 0.05]} />
+        <meshStandardMaterial color="#1a2a4a" roughness={0.3} metalness={0.5} emissive="#0a1530" emissiveIntensity={0.4} />
+      </mesh>
+      {/* Solar wing arm */}
+      <mesh position={[0, 0, 0.03]}>
+        <boxGeometry args={[0.004, 0.004, 0.02]} />
+        <meshStandardMaterial color="#888888" roughness={0.5} metalness={0.5} />
+      </mesh>
+      {/* AVHRR/3 sensor (bottom) */}
+      <mesh position={[0, -0.04, 0]} rotation={[0, 0, 0]}>
+        <cylinderGeometry args={[0.012, 0.01, 0.012, 10]} />
+        <meshStandardMaterial color="#444444" roughness={0.3} metalness={0.7} emissive="#222222" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Antenna mast (top) */}
+      <mesh position={[0, 0.045, 0]}>
+        <cylinderGeometry args={[0.002, 0.002, 0.025, 6]} />
+        <meshStandardMaterial color="#cccccc" roughness={0.5} metalness={0.6} />
+      </mesh>
+      {/* UHF antenna */}
+      <mesh position={[0.015, 0.04, 0]} rotation={[0, 0, -0.4]}>
+        <cylinderGeometry args={[0.001, 0.001, 0.02, 4]} />
+        <meshStandardMaterial color="#bbbbbb" roughness={0.5} metalness={0.6} />
+      </mesh>
+    </group>
+  );
+}
+
+// Landsat 9 — rugged boxy bus + 3-panel solar array + instrument apertures
+function LandsatModel() {
+  return (
+    <group scale={1.3}>
+      {/* Spacecraft bus */}
+      <mesh>
+        <boxGeometry args={[0.04, 0.05, 0.04]} />
+        <meshStandardMaterial color="#d0cdc5" roughness={0.55} metalness={0.3} emissive="#b0ada5" emissiveIntensity={0.1} />
+      </mesh>
+      {/* 3-panel solar array */}
+      <mesh position={[0, 0, 0.07]}>
+        <boxGeometry args={[0.035, 0.003, 0.03]} />
+        <meshStandardMaterial color="#1a2a4a" roughness={0.3} metalness={0.5} emissive="#0a1530" emissiveIntensity={0.4} />
+      </mesh>
+      <mesh position={[0, 0, 0.1]}>
+        <boxGeometry args={[0.035, 0.003, 0.03]} />
+        <meshStandardMaterial color="#1a2a4a" roughness={0.3} metalness={0.5} emissive="#0a1530" emissiveIntensity={0.4} />
+      </mesh>
+      <mesh position={[0, 0, 0.13]}>
+        <boxGeometry args={[0.035, 0.003, 0.03]} />
+        <meshStandardMaterial color="#1a2a4a" roughness={0.3} metalness={0.5} emissive="#0a1530" emissiveIntensity={0.4} />
+      </mesh>
+      {/* Solar array arm */}
+      <mesh position={[0, 0, 0.045]}>
+        <boxGeometry args={[0.004, 0.004, 0.03]} />
+        <meshStandardMaterial color="#888888" roughness={0.5} metalness={0.5} />
+      </mesh>
+      {/* OLI-2 instrument aperture (Earth-facing) */}
+      <mesh position={[0.01, -0.028, 0]}>
+        <cylinderGeometry args={[0.01, 0.008, 0.008, 10]} />
+        <meshStandardMaterial color="#333333" roughness={0.3} metalness={0.8} emissive="#1a1a1a" emissiveIntensity={0.2} />
+      </mesh>
+      {/* TIRS-2 instrument aperture */}
+      <mesh position={[-0.01, -0.028, 0]}>
+        <cylinderGeometry args={[0.008, 0.006, 0.008, 10]} />
+        <meshStandardMaterial color="#2a2a2a" roughness={0.3} metalness={0.8} emissive="#151515" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Gold thermal foil on one face */}
+      <mesh position={[0.022, 0, 0]}>
+        <boxGeometry args={[0.002, 0.048, 0.038]} />
+        <meshStandardMaterial color="#c8a832" roughness={0.35} metalness={0.8} emissive="#8a7420" emissiveIntensity={0.15} />
+      </mesh>
+    </group>
+  );
+}
+
+// JWST — hexagonal gold mirror array + secondary mirror tripod + kite-shaped sunshield
+function JWSTModel() {
+  const goldColor = '#d4a017';
+  const goldEmissive = '#8a6a10';
+  // Hexagonal mirror segments arranged in the iconic pattern
+  const hexPositions = [
+    [0, 0.015, 0], [-0.022, 0.015, 0.013], [0.022, 0.015, 0.013],
+    [-0.022, 0.015, -0.013], [0.022, 0.015, -0.013], [0, 0.015, 0.026],
+    [0, 0.015, -0.026], [-0.044, 0.015, 0], [0.044, 0.015, 0],
+    [-0.033, 0.015, 0.02], [0.033, 0.015, 0.02], [-0.033, 0.015, -0.02],
+    [0.033, 0.015, -0.02], [-0.011, 0.015, 0.033], [0.011, 0.015, 0.033],
+    [-0.011, 0.015, -0.033], [0.011, 0.015, -0.033], [0.044, 0.015, 0.013],
+  ];
+  return (
+    <group scale={1.6}>
+      {/* Primary mirror — 18 gold hexagonal segments */}
+      {hexPositions.map((pos, i) => (
+        <mesh key={i} position={pos as [number, number, number]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.011, 0.011, 0.002, 6]} />
+          <meshStandardMaterial color={goldColor} roughness={0.15} metalness={0.95} emissive={goldEmissive} emissiveIntensity={0.3} />
+        </mesh>
+      ))}
+      {/* Secondary mirror on tripod */}
+      <mesh position={[0, 0.06, 0]}>
+        <cylinderGeometry args={[0.005, 0.005, 0.002, 6]} />
+        <meshStandardMaterial color={goldColor} roughness={0.2} metalness={0.9} emissive={goldEmissive} emissiveIntensity={0.25} />
+      </mesh>
+      {/* Tripod struts */}
+      {[0, 2.1, 4.2].map((angle, i) => (
+        <mesh key={`strut-${i}`} position={[
+          Math.sin(angle) * 0.025, 0.038, Math.cos(angle) * 0.025
+        ]} rotation={[Math.sin(angle) * 0.6, 0, -Math.cos(angle) * 0.6]}>
+          <cylinderGeometry args={[0.001, 0.001, 0.06, 4]} />
+          <meshStandardMaterial color="#aaaaaa" roughness={0.5} metalness={0.6} />
+        </mesh>
+      ))}
+      {/* Sunshield — 5-layer kite shape (purple/silver Kapton) */}
+      <mesh position={[0, -0.02, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <boxGeometry args={[0.11, 0.065, 0.008]} />
+        <meshStandardMaterial color="#8a6aaa" roughness={0.4} metalness={0.6} emissive="#4a3a6a" emissiveIntensity={0.2} transparent opacity={0.85} />
+      </mesh>
+      {/* Sunshield silver bottom layer */}
+      <mesh position={[0, -0.026, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <boxGeometry args={[0.12, 0.07, 0.002]} />
+        <meshStandardMaterial color="#c0c0c0" roughness={0.3} metalness={0.8} emissive="#808080" emissiveIntensity={0.1} transparent opacity={0.6} />
+      </mesh>
+      {/* Spacecraft bus (behind sunshield) */}
+      <mesh position={[0, -0.01, 0]}>
+        <boxGeometry args={[0.03, 0.015, 0.02]} />
+        <meshStandardMaterial color="#888888" roughness={0.5} metalness={0.5} emissive="#555555" emissiveIntensity={0.1} />
+      </mesh>
+    </group>
+  );
+}
+
+// AO-91 CubeSat — 1U cube with solar cells on all faces + whip antennas
+function CubeSatModel({ color }: { color: string }) {
+  return (
+    <group scale={1.2}>
+      {/* 1U CubeSat body — dark with solar cell tint */}
+      <mesh>
+        <boxGeometry args={[0.03, 0.03, 0.03]} />
+        <meshStandardMaterial color="#1a1a2a" roughness={0.4} metalness={0.5} emissive="#0a0a15" emissiveIntensity={0.3} />
+      </mesh>
+      {/* Solar cell faces (slightly offset, blue-black) */}
+      {[
+        { pos: [0, 0, 0.0155], rot: [0, 0, 0] },
+        { pos: [0, 0, -0.0155], rot: [0, Math.PI, 0] },
+        { pos: [0.0155, 0, 0], rot: [0, Math.PI / 2, 0] },
+        { pos: [-0.0155, 0, 0], rot: [0, -Math.PI / 2, 0] },
+        { pos: [0, 0.0155, 0], rot: [-Math.PI / 2, 0, 0] },
+        { pos: [0, -0.0155, 0], rot: [Math.PI / 2, 0, 0] },
+      ].map((face, i) => (
+        <mesh key={i} position={face.pos as [number, number, number]} rotation={face.rot as [number, number, number]}>
+          <planeGeometry args={[0.028, 0.028]} />
+          <meshStandardMaterial color="#0d1525" roughness={0.3} metalness={0.6} emissive="#05101a" emissiveIntensity={0.3} />
+        </mesh>
+      ))}
+      {/* Whip antenna 1 */}
+      <mesh position={[0.015, 0.015, 0.015]} rotation={[0.4, 0, 0.4]}>
+        <cylinderGeometry args={[0.0005, 0.0005, 0.04, 4]} />
+        <meshStandardMaterial color="#cccccc" roughness={0.5} metalness={0.7} emissive="#888888" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Whip antenna 2 */}
+      <mesh position={[0.015, 0.015, 0.012]} rotation={[-0.3, 0, 0.5]}>
+        <cylinderGeometry args={[0.0005, 0.0005, 0.035, 4]} />
+        <meshStandardMaterial color="#cccccc" roughness={0.5} metalness={0.7} emissive="#888888" emissiveIntensity={0.2} />
+      </mesh>
+    </group>
+  );
+}
+
+// Tiangong (CSS) — T-shaped station with core module + two lab modules + solar panels
+function TiangongModel({ color }: { color: string }) {
+  const panelColor = '#1a3a5c';
+  return (
+    <group scale={1.5}>
+      {/* Core module (Tianhe) */}
+      <mesh rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.02, 0.02, 0.1, 12]} />
+        <meshStandardMaterial color="#e0dcd4" roughness={0.5} metalness={0.3} emissive="#c0bcb4" emissiveIntensity={0.12} />
+      </mesh>
+      {/* Lab module 1 (Wentian) — perpendicular */}
+      <mesh position={[0, 0, 0.04]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.018, 0.018, 0.06, 12]} />
+        <meshStandardMaterial color="#d8d4cc" roughness={0.5} metalness={0.3} emissive="#b8b4ac" emissiveIntensity={0.1} />
+      </mesh>
+      {/* Lab module 2 (Mengtian) — perpendicular other side */}
+      <mesh position={[0, 0, -0.04]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.018, 0.018, 0.06, 12]} />
+        <meshStandardMaterial color="#d8d4cc" roughness={0.5} metalness={0.3} emissive="#b8b4ac" emissiveIntensity={0.1} />
+      </mesh>
+      {/* Solar panels (core) */}
+      <mesh position={[0.06, 0, 0]}>
+        <boxGeometry args={[0.04, 0.003, 0.08]} />
+        <meshStandardMaterial color={panelColor} roughness={0.3} metalness={0.6} emissive="#0a1530" emissiveIntensity={0.4} />
+      </mesh>
+      <mesh position={[-0.06, 0, 0]}>
+        <boxGeometry args={[0.04, 0.003, 0.08]} />
+        <meshStandardMaterial color={panelColor} roughness={0.3} metalness={0.6} emissive="#0a1530" emissiveIntensity={0.4} />
+      </mesh>
+      {/* Solar panels (lab modules) */}
+      <mesh position={[0, 0, 0.075]}>
+        <boxGeometry args={[0.06, 0.003, 0.02]} />
+        <meshStandardMaterial color={panelColor} roughness={0.3} metalness={0.6} emissive="#0a1530" emissiveIntensity={0.35} />
+      </mesh>
+      <mesh position={[0, 0, -0.075]}>
+        <boxGeometry args={[0.06, 0.003, 0.02]} />
+        <meshStandardMaterial color={panelColor} roughness={0.3} metalness={0.6} emissive="#0a1530" emissiveIntensity={0.35} />
+      </mesh>
+    </group>
+  );
+}
+
+// Generic satellite with solar panels — used for category-based rendering
+function GenericSatModel({ color, category }: { color: string; category: SatelliteCategory }) {
+  const isComms = category === 'COMMS';
+  const isGPS = category === 'GPS_GNSS';
+  const isWeather = category === 'WEATHER_SAT';
+  const isEarthObs = category === 'EARTH_OBS';
+
+  return (
+    <group>
+      {isGPS ? (
+        // GPS — cylindrical bus + two solar wings
+        <group>
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.02, 0.02, 0.05, 10]} />
+            <meshStandardMaterial color="#d0cdc5" roughness={0.5} metalness={0.4} emissive="#a0a098" emissiveIntensity={0.12} />
+          </mesh>
+          <mesh position={[0, 0, 0.05]}>
+            <boxGeometry args={[0.06, 0.003, 0.04]} />
+            <meshStandardMaterial color="#1a2a4a" roughness={0.3} metalness={0.5} emissive="#0a1530" emissiveIntensity={0.4} />
+          </mesh>
+          <mesh position={[0, 0, -0.05]}>
+            <boxGeometry args={[0.06, 0.003, 0.04]} />
+            <meshStandardMaterial color="#1a2a4a" roughness={0.3} metalness={0.5} emissive="#0a1530" emissiveIntensity={0.4} />
+          </mesh>
+          {/* Antenna array (nadir) */}
+          <mesh position={[0, -0.03, 0]}>
+            <coneGeometry args={[0.012, 0.01, 8]} />
+            <meshStandardMaterial color="#cccccc" roughness={0.4} metalness={0.6} emissive="#888888" emissiveIntensity={0.1} />
+          </mesh>
+        </group>
+      ) : isWeather ? (
+        // Weather — boxy + single solar wing + sensor
+        <group>
+          <mesh>
+            <boxGeometry args={[0.035, 0.04, 0.035]} />
+            <meshStandardMaterial color="#d8d5cc" roughness={0.5} metalness={0.3} emissive="#b0ada5" emissiveIntensity={0.1} />
+          </mesh>
+          <mesh position={[0, 0, 0.05]}>
+            <boxGeometry args={[0.05, 0.003, 0.04]} />
+            <meshStandardMaterial color="#1a2a4a" roughness={0.3} metalness={0.5} emissive="#0a1530" emissiveIntensity={0.4} />
+          </mesh>
+          <mesh position={[0, -0.024, 0]}>
+            <cylinderGeometry args={[0.008, 0.006, 0.006, 8]} />
+            <meshStandardMaterial color="#333333" roughness={0.3} metalness={0.7} emissive="#1a1a1a" emissiveIntensity={0.2} />
+          </mesh>
+        </group>
+      ) : isComms ? (
+        // Comms — flat bus + large solar wings (Starlink-like)
+        <group>
+          <mesh>
+            <boxGeometry args={[0.04, 0.008, 0.025]} />
+            <meshStandardMaterial color="#cccccc" roughness={0.5} metalness={0.4} emissive="#999999" emissiveIntensity={0.1} />
+          </mesh>
+          <mesh position={[0, 0, 0.04]}>
+            <boxGeometry args={[0.06, 0.002, 0.04]} />
+            <meshStandardMaterial color="#1a2a4a" roughness={0.3} metalness={0.5} emissive="#0a1530" emissiveIntensity={0.4} />
+          </mesh>
+          {/* Antenna (phased array face) */}
+          <mesh position={[0, -0.006, 0]}>
+            <boxGeometry args={[0.035, 0.002, 0.02]} />
+            <meshStandardMaterial color="#444444" roughness={0.3} metalness={0.7} emissive="#222222" emissiveIntensity={0.15} />
+          </mesh>
+        </group>
+      ) : isEarthObs ? (
+        // Earth obs — boxy + single solar array + instrument
+        <group>
+          <mesh>
+            <boxGeometry args={[0.035, 0.04, 0.03]} />
+            <meshStandardMaterial color="#d0cdc5" roughness={0.5} metalness={0.3} emissive="#b0ada5" emissiveIntensity={0.1} />
+          </mesh>
+          <mesh position={[0, 0, 0.05]}>
+            <boxGeometry args={[0.05, 0.003, 0.04]} />
+            <meshStandardMaterial color="#1a2a4a" roughness={0.3} metalness={0.5} emissive="#0a1530" emissiveIntensity={0.4} />
+          </mesh>
+          <mesh position={[0, -0.024, 0]}>
+            <cylinderGeometry args={[0.009, 0.007, 0.008, 10]} />
+            <meshStandardMaterial color="#333333" roughness={0.3} metalness={0.7} emissive="#1a1a1a" emissiveIntensity={0.2} />
+          </mesh>
+          {/* Gold thermal foil strip */}
+          <mesh position={[0.019, 0, 0]}>
+            <boxGeometry args={[0.002, 0.038, 0.028]} />
+            <meshStandardMaterial color="#c8a832" roughness={0.35} metalness={0.8} emissive="#8a7420" emissiveIntensity={0.12} />
+          </mesh>
+        </group>
+      ) : (
+        // Amateur radio / generic CubeSat
+        <group>
+          <mesh>
+            <boxGeometry args={[0.025, 0.025, 0.025]} />
+            <meshStandardMaterial color="#1a1a2a" roughness={0.4} metalness={0.5} emissive="#0a0a15" emissiveIntensity={0.3} />
+          </mesh>
+          <mesh position={[0.03, 0, 0]}>
+            <boxGeometry args={[0.03, 0.003, 0.02]} />
+            <meshStandardMaterial color="#1a2a4a" roughness={0.3} metalness={0.5} emissive="#0a1530" emissiveIntensity={0.4} />
+          </mesh>
+          <mesh position={[-0.03, 0, 0]}>
+            <boxGeometry args={[0.03, 0.003, 0.02]} />
+            <meshStandardMaterial color="#1a2a4a" roughness={0.3} metalness={0.5} emissive="#0a1530" emissiveIntensity={0.4} />
+          </mesh>
+          {/* Antenna */}
+          <mesh position={[0.012, 0.02, 0]} rotation={[0, 0, 0.4]}>
+            <cylinderGeometry args={[0.0005, 0.0005, 0.025, 4]} />
+            <meshStandardMaterial color="#cccccc" roughness={0.5} metalness={0.6} />
+          </mesh>
+        </group>
+      )}
+    </group>
+  );
+}
+
+// Resolve which 3D model to render for a given satellite
+function SatelliteModel({ satellite, color }: { satellite: Satellite; color: string }) {
+  const rid = satellite.registryId;
+  if (rid === 'iss') return <ISSModel color={color} />;
+  if (rid === 'hubble') return <HubbleModel />;
+  if (rid === 'goes-16' || rid === 'goes-18') return <GOESModel />;
+  if (rid === 'noaa-19') return <NOAAModel />;
+  if (rid === 'landsat-9') return <LandsatModel />;
+  if (rid === 'jwst') return <JWSTModel />;
+  if (rid === 'ao-91') return <CubeSatModel color={color} />;
+  // Tiangong
+  if (satellite.name?.includes('TIANGONG')) return <TiangongModel color={color} />;
+  // Fallback: category-based generic model
+  return <GenericSatModel color={color} category={satellite.category} />;
+}
+
 function SatelliteMarker({
   satellite,
   isSelected,
@@ -571,7 +1066,7 @@ function SatelliteMarker({
   const [hovered, setHovered] = useState(false);
 
   const color = categoryColors[satellite.category];
-  const isISS = satellite.category === 'SPACE_STATION';
+  const isStation = satellite.category === 'SPACE_STATION';
 
   // Position satellite using ECI coordinates (inertial frame)
   useFrame(() => {
@@ -580,7 +1075,6 @@ function SatelliteMarker({
       let pos: THREE.Vector3 | null = null;
 
       if (satellite.special === 'L2_POINT') {
-        // JWST: anti-sunward direction at visual radius
         const eciDir = getJWSTPositionECI(simDate);
         pos = eciDirToThreeJS(eciDir.eciX, eciDir.eciY, eciDir.eciZ, getOrbitRadius(satellite.altitude));
       } else {
@@ -595,9 +1089,9 @@ function SatelliteMarker({
       }
     }
   });
-  
-  const satelliteScale = isISS ? 1.5 : isSelected || hovered ? 1.2 : 1;
-  
+
+  const satelliteScale = isStation ? 1.5 : isSelected || hovered ? 1.2 : 1;
+
   return (
     <group ref={satelliteRef}>
       <group
@@ -612,68 +1106,8 @@ function SatelliteMarker({
         }}
         scale={satelliteScale}
       >
-        {isISS ? (
-          // ISS - larger with solar panels
-          <group>
-            <mesh>
-              <boxGeometry args={[0.08, 0.04, 0.04]} />
-              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} />
-            </mesh>
-            <mesh position={[0, 0, 0.08]}>
-              <boxGeometry args={[0.2, 0.01, 0.08]} />
-              <meshStandardMaterial color="#00D4FF" emissive="#00D4FF" emissiveIntensity={0.5} />
-            </mesh>
-            <mesh position={[0, 0, -0.08]}>
-              <boxGeometry args={[0.2, 0.01, 0.08]} />
-              <meshStandardMaterial color="#00D4FF" emissive="#00D4FF" emissiveIntensity={0.5} />
-            </mesh>
-          </group>
-        ) : satellite.category === 'GPS_GNSS' ? (
-          // GPS - cylindrical with antenna arrays
-          <group>
-            <mesh rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.025, 0.025, 0.06, 8]} />
-              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} />
-            </mesh>
-            <mesh position={[0.05, 0, 0]}>
-              <boxGeometry args={[0.05, 0.006, 0.025]} />
-              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} />
-            </mesh>
-            <mesh position={[-0.05, 0, 0]}>
-              <boxGeometry args={[0.05, 0.006, 0.025]} />
-              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} />
-            </mesh>
-          </group>
-        ) : satellite.category === 'WEATHER_SAT' ? (
-          // Weather satellite - box with dish
-          <group>
-            <mesh>
-              <boxGeometry args={[0.04, 0.05, 0.04]} />
-              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} />
-            </mesh>
-            <mesh position={[0, 0.04, 0]} rotation={[-Math.PI / 4, 0, 0]}>
-              <coneGeometry args={[0.025, 0.015, 16]} />
-              <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.4} />
-            </mesh>
-          </group>
-        ) : (
-          // Generic satellite - cube with solar panels
-          <group>
-            <mesh>
-              <boxGeometry args={[0.03, 0.03, 0.03]} />
-              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} />
-            </mesh>
-            <mesh position={[0.04, 0, 0]}>
-              <boxGeometry args={[0.05, 0.006, 0.025]} />
-              <meshStandardMaterial color="#00D4FF" emissive="#00D4FF" emissiveIntensity={0.5} />
-            </mesh>
-            <mesh position={[-0.04, 0, 0]}>
-              <boxGeometry args={[0.05, 0.006, 0.025]} />
-              <meshStandardMaterial color="#00D4FF" emissive="#00D4FF" emissiveIntensity={0.5} />
-            </mesh>
-          </group>
-        )}
-        
+        <SatelliteModel satellite={satellite} color={color} />
+
         {isSelected && (
           <mesh rotation={[Math.PI / 2, 0, 0]}>
             <ringGeometry args={[0.1, 0.12, 32]} />
@@ -681,7 +1115,7 @@ function SatelliteMarker({
           </mesh>
         )}
       </group>
-      
+
       {isSelected && (
         <Html position={[0, 0.15, 0]} center>
           <div className="bg-[rgba(0,0,0,0.8)] border border-[rgba(0,255,65,0.5)] px-2 py-1 rounded text-xs whitespace-nowrap">
@@ -702,7 +1136,14 @@ function OrbitPath({ satellite }: OrbitPathProps) {
   const color = categoryColors[satellite.category];
   const isGeo = satellite.special === 'GEOSTATIONARY' || satellite.altitude > 35000;
 
-  // Compute orbit path in ECI coordinates (proper circle/ellipse in inertial frame)
+  // Refresh orbit path every ~5 seconds to stay in sync with accelerated sim time
+  const [epoch, setEpoch] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setEpoch(e => e + 1), 5000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Compute orbit path in ECI coordinates at current sim time
   const orbitPoints = useMemo(() => {
     if (satellite.noradId <= 0) return [];
 
@@ -721,16 +1162,17 @@ function OrbitPath({ satellite }: OrbitPathProps) {
       return points;
     }
 
-    // For LEO/MEO sats, compute one full orbit in ECI (proper circular path)
+    // For LEO/MEO sats, compute one full orbit from current sim time
     try {
-      const eciPositions = computeOrbitPathECI(satellite.noradId, 20);
+      const simDate = getSimDate();
+      const eciPositions = computeOrbitPathECI(satellite.noradId, 20, simDate);
       if (eciPositions.length < 2) return [];
 
       return eciPositions.map(pos => eciToThreeJSSat(pos.eciX, pos.eciY, pos.eciZ));
     } catch {
       return [];
     }
-  }, [satellite.noradId, satellite.altitude, isGeo]);
+  }, [satellite.noradId, satellite.altitude, isGeo, epoch]);
 
   if (orbitPoints.length < 2) return null;
 
