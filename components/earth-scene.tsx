@@ -268,7 +268,7 @@ function Earth() {
   const [geoData, setGeoData] = useState<GeoJSONData | null>(cachedGeoJSON);
   const [isLoading, setIsLoading] = useState(!cachedGeoJSON);
   
-  // Load GeoJSON country data
+  // Load GeoJSON country data with correct India boundaries
   useEffect(() => {
     if (cachedGeoJSON) {
       setGeoData(cachedGeoJSON);
@@ -276,16 +276,44 @@ function Earth() {
       return;
     }
     
-    fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
-      .then(res => res.json())
-      .then((data: GeoJSONData) => {
-        cachedGeoJSON = data;
-        setGeoData(data);
+    // Load world data and India official data in parallel
+    Promise.all([
+      fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json').then(r => r.json()),
+      fetch('https://raw.githubusercontent.com/AbhinavSwami28/india-official-geojson/main/india-states-simplified.geojson').then(r => r.json())
+    ])
+      .then(([worldData, indiaData]: [GeoJSONData, GeoJSONData]) => {
+        // Remove incorrect India and Pakistan boundaries from world data
+        const filteredFeatures = worldData.features.filter(f => {
+          const name = f.properties.name?.toLowerCase() || '';
+          return name !== 'india' && name !== 'pakistan';
+        });
+        
+        // Add official India boundaries (includes J&K, Ladakh with PoK, Aksai Chin)
+        const indiaFeatures = indiaData.features.map(f => ({
+          ...f,
+          properties: { ...f.properties, name: f.properties.name || 'India' }
+        }));
+        
+        // Merge: world countries (except India/Pakistan) + official India states
+        const mergedData: GeoJSONData = {
+          type: 'FeatureCollection',
+          features: [...filteredFeatures, ...indiaFeatures]
+        };
+        
+        cachedGeoJSON = mergedData;
+        setGeoData(mergedData);
         setIsLoading(false);
       })
       .catch(err => {
         console.error('Failed to load GeoJSON:', err);
-        setIsLoading(false);
+        // Fallback to world data only
+        fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
+          .then(r => r.json())
+          .then((data: GeoJSONData) => {
+            cachedGeoJSON = data;
+            setGeoData(data);
+            setIsLoading(false);
+          });
       });
   }, []);
   
