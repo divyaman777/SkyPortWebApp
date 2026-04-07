@@ -137,63 +137,73 @@ export default function Skyport() {
             {/* Outer glow pulse */}
             <div className="absolute inset-0 rounded-full bg-[#00D4FF] opacity-15 blur-xl animate-pulse" />
             
-            {/* Earth with realistic continents */}
-            <div className="absolute inset-6 rounded-full overflow-hidden shadow-[0_0_80px_rgba(0,212,255,0.5)]">
+            {/* Earth with Americas view */}
+            <div className="absolute inset-6 rounded-full overflow-hidden shadow-[0_0_80px_rgba(0,212,255,0.6)]">
               <svg viewBox="0 0 100 100" className="w-full h-full">
                 <defs>
-                  {/* Ocean gradient */}
-                  <radialGradient id="ocean" cx="30%" cy="30%" r="70%">
-                    <stop offset="0%" stopColor="#2980b9" />
-                    <stop offset="50%" stopColor="#1a5276" />
-                    <stop offset="100%" stopColor="#0c1821" />
+                  {/* Ocean gradient - brighter */}
+                  <radialGradient id="ocean" cx="35%" cy="35%" r="65%">
+                    <stop offset="0%" stopColor="#3498db" />
+                    <stop offset="40%" stopColor="#2980b9" />
+                    <stop offset="100%" stopColor="#1a5276" />
                   </radialGradient>
-                  {/* Land gradient */}
+                  {/* Land gradient - brighter green */}
                   <linearGradient id="land" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#4a7c23" />
-                    <stop offset="100%" stopColor="#2d5016" />
+                    <stop offset="0%" stopColor="#5dbb3f" />
+                    <stop offset="50%" stopColor="#4a9c2d" />
+                    <stop offset="100%" stopColor="#3d7a24" />
                   </linearGradient>
                   {/* Atmosphere glow */}
                   <radialGradient id="atmosphere" cx="50%" cy="50%" r="50%">
-                    <stop offset="85%" stopColor="transparent" />
-                    <stop offset="100%" stopColor="#00D4FF" stopOpacity="0.3" />
+                    <stop offset="80%" stopColor="transparent" />
+                    <stop offset="100%" stopColor="#00D4FF" stopOpacity="0.4" />
                   </radialGradient>
                 </defs>
                 
                 {/* Ocean base */}
                 <circle cx="50" cy="50" r="50" fill="url(#ocean)" />
                 
-                {/* North America */}
-                <path d="M15,25 Q20,20 28,22 L32,18 Q38,15 42,18 L45,22 Q43,28 40,32 L38,38 Q35,42 30,45 L25,43 Q20,40 18,35 L15,30 Q13,28 15,25" fill="url(#land)" opacity="0.85" />
+                {/* North America - larger and more visible */}
+                <path 
+                  d="M20,15 L30,12 L40,10 L50,12 L55,18 L52,25 L55,30 L50,35 L45,32 L42,38 L38,42 L32,48 L28,45 L25,48 L22,45 L18,40 L15,35 L12,28 L15,20 Z" 
+                  fill="url(#land)" 
+                  stroke="#2d5016" 
+                  strokeWidth="0.5"
+                />
+                {/* Greenland */}
+                <path 
+                  d="M42,8 L48,6 L52,8 L50,12 L45,11 Z" 
+                  fill="url(#land)" 
+                  stroke="#2d5016" 
+                  strokeWidth="0.3"
+                />
                 
-                {/* South America */}
-                <path d="M28,52 Q32,50 35,52 L37,58 Q38,65 36,72 L33,78 Q30,82 27,80 L25,75 Q23,68 24,62 L26,56 Q27,53 28,52" fill="url(#land)" opacity="0.85" />
+                {/* Central America */}
+                <path 
+                  d="M28,48 L32,50 L35,52 L33,55 L30,54 L27,52 Z" 
+                  fill="url(#land)" 
+                  stroke="#2d5016" 
+                  strokeWidth="0.3"
+                />
                 
-                {/* Europe */}
-                <path d="M48,22 Q52,20 56,22 L58,25 Q60,28 58,32 L54,34 Q50,33 48,30 L47,26 Q47,23 48,22" fill="url(#land)" opacity="0.85" />
+                {/* South America - larger and more visible */}
+                <path 
+                  d="M33,56 L40,54 L48,56 L52,62 L50,70 L45,78 L40,85 L35,88 L30,85 L28,78 L30,70 L28,62 Z" 
+                  fill="url(#land)" 
+                  stroke="#2d5016" 
+                  strokeWidth="0.5"
+                />
                 
-                {/* Africa */}
-                <path d="M50,38 Q55,36 60,38 L63,45 Q65,52 63,60 L60,68 Q55,72 50,70 L48,62 Q46,52 48,45 L50,38" fill="url(#land)" opacity="0.85" />
-                
-                {/* Asia */}
-                <path d="M62,18 Q70,15 78,18 L82,22 Q85,28 83,35 L80,42 Q75,48 68,50 L62,48 Q58,44 60,38 L63,30 Q64,24 62,18" fill="url(#land)" opacity="0.85" />
-                
-                {/* Australia */}
-                <path d="M75,58 Q80,56 84,58 L86,62 Q87,67 85,70 L80,72 Q76,71 74,68 L73,63 Q74,59 75,58" fill="url(#land)" opacity="0.85" />
-                
-                {/* Antarctica hint */}
-                <path d="M30,88 Q40,85 50,86 Q60,85 70,88 L72,92 Q60,95 50,95 Q40,95 28,92 L30,88" fill="#e8e8e8" opacity="0.6" />
-                
-                {/* Cloud wisps */}
-                <ellipse cx="25" cy="30" rx="8" ry="3" fill="white" opacity="0.25" />
-                <ellipse cx="65" cy="25" rx="10" ry="3" fill="white" opacity="0.2" />
-                <ellipse cx="45" cy="55" rx="7" ry="2" fill="white" opacity="0.2" />
-                <ellipse cx="70" cy="45" rx="6" ry="2" fill="white" opacity="0.15" />
+                {/* Cloud formations */}
+                <ellipse cx="30" cy="25" rx="12" ry="4" fill="white" opacity="0.3" />
+                <ellipse cx="55" cy="40" rx="8" ry="3" fill="white" opacity="0.25" />
+                <ellipse cx="38" cy="65" rx="10" ry="3" fill="white" opacity="0.2" />
                 
                 {/* Atmosphere overlay */}
                 <circle cx="50" cy="50" r="50" fill="url(#atmosphere)" />
                 
-                {/* Specular highlight */}
-                <ellipse cx="35" cy="30" rx="15" ry="12" fill="white" opacity="0.08" />
+                {/* Specular highlight - brighter */}
+                <ellipse cx="32" cy="28" rx="18" ry="14" fill="white" opacity="0.12" />
               </svg>
             </div>
             
