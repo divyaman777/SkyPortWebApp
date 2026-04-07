@@ -313,20 +313,22 @@ function ObserverMarker() {
   const markerRef = useRef<THREE.Group>(null);
   const [observerLat, setObserverLat] = useState(40.7128); // Default: New York
   const [observerLon, setObserverLon] = useState(-74.0060);
-  const geoRequested = useRef(false);
 
-  // Request geolocation once
-  if (!geoRequested.current && typeof navigator !== 'undefined' && navigator.geolocation) {
-    geoRequested.current = true;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setObserverLat(pos.coords.latitude);
-        setObserverLon(pos.coords.longitude);
-        console.log(`[SKYPORT] Observer location: ${pos.coords.latitude.toFixed(2)}, ${pos.coords.longitude.toFixed(2)}`);
-      },
-      () => { console.log('[SKYPORT] Geolocation denied, using default (New York)'); }
-    );
-  }
+  // Get approximate location from IP address (no permission popup)
+  useEffect(() => {
+    fetch('https://ipapi.co/json/')
+      .then(r => r.json())
+      .then(data => {
+        if (data.latitude && data.longitude) {
+          setObserverLat(data.latitude);
+          setObserverLon(data.longitude);
+          console.log(`[SKYPORT] Observer location (IP): ${data.latitude.toFixed(2)}, ${data.longitude.toFixed(2)} (${data.city || 'unknown'})`);
+        }
+      })
+      .catch(() => {
+        console.log('[SKYPORT] IP geolocation failed, using default (New York)');
+      });
+  }, []);
 
   const position = useMemo(() => {
     return latLonToVector3(observerLat, observerLon, 2.03);
