@@ -120,10 +120,13 @@ function eciDirToThreeJS(eciX: number, eciY: number, eciZ: number, radius: numbe
   return new THREE.Vector3(eciX * scale, eciZ * scale, -eciY * scale);
 }
 
-// Simulation time: 80x real-time for visible but clickable orbital motion
-const TIME_SCALE = 80;
-// Moon moves much slower than LEO sats — extra multiplier so its revolution is visible
-const MOON_SPEED_MULT = 40;
+// Simulation time: 120x real-time — Earth rotates once per ~12 min, satellites still clickable
+const TIME_SCALE = 120;
+// Moon revolution multiplier — Moon orbits in ~22 min (real: 27.3 days per Earth rotation × 27.3)
+// Keeps Moon visibly moving without spinning unrealistically fast
+const MOON_SPEED_MULT = 15;
+// Moon tidal-lock rotation rate: one rotation per orbit (rad/s in sim time)
+const MOON_ROT_RATE = (2 * Math.PI) / (27.3 * 24 * 3600 / (TIME_SCALE * MOON_SPEED_MULT));
 const simStartReal = Date.now();
 const simStartDate = new Date();
 
@@ -139,6 +142,81 @@ function getMoonSimDate(): Date {
 
 // Earth rotation state
 let earthRotation = 0;
+
+// Procedural ocean texture — subtle deep blue variation over dark base
+function generateOceanTexture(): HTMLCanvasElement {
+  const W = 1024, H = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d')!;
+
+  // Dark base matching the existing ocean color
+  ctx.fillStyle = '#050a12';
+  ctx.fillRect(0, 0, W, H);
+
+  // Seeded random
+  let seed = 137;
+  const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+
+  // Large-scale ocean current / depth variation — soft blueish patches
+  const patches = [
+    { cx: 0.15, cy: 0.45, rx: 0.18, ry: 0.14 },  // Pacific
+    { cx: 0.85, cy: 0.50, rx: 0.12, ry: 0.16 },  // Indian Ocean
+    { cx: 0.48, cy: 0.55, rx: 0.10, ry: 0.12 },  // Atlantic south
+    { cx: 0.45, cy: 0.35, rx: 0.08, ry: 0.10 },  // Atlantic north
+    { cx: 0.10, cy: 0.60, rx: 0.14, ry: 0.10 },  // South Pacific
+    { cx: 0.70, cy: 0.40, rx: 0.09, ry: 0.08 },  // Arabian Sea
+    { cx: 0.25, cy: 0.30, rx: 0.11, ry: 0.09 },  // North Pacific
+    { cx: 0.60, cy: 0.70, rx: 0.13, ry: 0.08 },  // Southern Ocean
+  ];
+
+  for (const p of patches) {
+    const cx = p.cx * W, cy = p.cy * H;
+    const rx = p.rx * W, ry = p.ry * H;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(1, ry / rx);
+    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+    grad.addColorStop(0, 'rgba(8,22,42,0.9)');
+    grad.addColorStop(0.4, 'rgba(6,18,35,0.6)');
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, rx, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Medium scattered blue shimmer spots
+  for (let i = 0; i < 120; i++) {
+    const x = rand() * W, y = rand() * H;
+    const r = 8 + rand() * 20;
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+    const blue = Math.floor(30 + rand() * 25);
+    const green = Math.floor(12 + rand() * 10);
+    grad.addColorStop(0, `rgba(${Math.floor(4 + rand() * 4)},${green},${blue},${0.3 + rand() * 0.25})`);
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Fine pixel-level noise for subtle texture
+  const imgData = ctx.getImageData(0, 0, W, H);
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    // Add slight blue-biased noise
+    const n = (rand() - 0.5) * 6;
+    d[i] = Math.max(0, Math.min(255, d[i] + n * 0.5));       // R: minimal
+    d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n * 0.7)); // G: slight
+    d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n * 1.2)); // B: most variation
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  return canvas;
+}
 
 // Earth component with accurate GeoJSON country borders
 function Earth() {
@@ -159,15 +237,23 @@ function Earth() {
     }
   });
 
+  // Procedural ocean texture with subtle blue variation
+  const oceanTexture = useMemo(() => {
+    const canvas = generateOceanTexture();
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }, []);
+
   return (
     <group ref={earthRef}>
-      {/* Ocean sphere - deep dark blue */}
+      {/* Ocean sphere - deep dark blue with subtle water variation */}
       <mesh>
         <sphereGeometry args={[2, 128, 128]} />
         <meshStandardMaterial
-          color="#050a12"
-          roughness={0.9}
-          metalness={0.1}
+          map={oceanTexture}
+          roughness={0.85}
+          metalness={0.15}
         />
       </mesh>
 
@@ -283,8 +369,10 @@ function ObserverMarker() {
   );
 }
 
-// Moon orbit radius
-const MOON_ORBIT_RADIUS = 8;
+// Moon sizing — real ratio: Moon radius ≈ 0.273× Earth radius, orbit ≈ 60× Earth radii
+// Visual compromise: orbit at 10× Earth radius so Moon is visible but clearly distant
+const MOON_RADIUS = 0.55; // 0.273 × 2 (Earth radius) ≈ 0.55
+const MOON_ORBIT_RADIUS = 20; // 10× Earth radius — visible compromise vs real 60×
 
 // Moon component with clickable orbit
 interface MoonProps {
@@ -299,6 +387,14 @@ function Moon({ isSelected, onMoonClick }: MoonProps) {
   const lastMoonUpdate = useRef(0);
   const moonTargetPos = useRef(new THREE.Vector3(MOON_ORBIT_RADIUS, 0, 0));
 
+  // NASA LROC Moon texture (public domain, from NASA SVS CGI Moon Kit #4720)
+  const moonTexture = useMemo(() => {
+    const loader = new THREE.TextureLoader();
+    const tex = loader.load('/moon-texture.jpg');
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }, []);
+
   useFrame((_, delta) => {
     // Compute Moon ECI position at accelerated moon time
     const now = Date.now();
@@ -311,9 +407,9 @@ function Moon({ isSelected, onMoonClick }: MoonProps) {
     if (moonRef.current) {
       moonRef.current.position.lerp(moonTargetPos.current, 0.15);
     }
-    // Moon axis rotation (tidally locked — same period as orbit, accelerated by MOON_SPEED_MULT)
+    // Moon axis rotation (tidally locked — one rotation per orbit)
     if (moonMeshRef.current) {
-      moonMeshRef.current.rotation.y += delta * 0.0004 * TIME_SCALE * MOON_SPEED_MULT;
+      moonMeshRef.current.rotation.y += delta * MOON_ROT_RATE;
     }
   });
 
@@ -374,35 +470,35 @@ function Moon({ isSelected, onMoonClick }: MoonProps) {
           }}
           scale={hovered || isSelected ? 1.1 : 1}
         >
-          <sphereGeometry args={[0.5, 32, 32]} />
-          <meshStandardMaterial 
-            color="#c0c0c0"
+          <sphereGeometry args={[MOON_RADIUS, 64, 64]} />
+          <meshStandardMaterial
+            map={moonTexture}
             roughness={0.9}
-            metalness={0.1}
+            metalness={0.05}
           />
         </mesh>
         {/* Moon glow */}
         <mesh>
-          <sphereGeometry args={[0.55, 32, 32]} />
-          <meshBasicMaterial 
+          <sphereGeometry args={[MOON_RADIUS * 1.1, 32, 32]} />
+          <meshBasicMaterial
             color="#ffffff"
             transparent
             opacity={isSelected ? 0.2 : 0.1}
             side={THREE.BackSide}
           />
         </mesh>
-        
+
         {/* Selection ring */}
         {isSelected && (
           <mesh rotation={[Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.6, 0.65, 32]} />
+            <ringGeometry args={[MOON_RADIUS * 1.2, MOON_RADIUS * 1.3, 32]} />
             <meshBasicMaterial color="#888888" transparent opacity={0.8} side={THREE.DoubleSide} />
           </mesh>
         )}
-        
+
         {/* Label when selected */}
         {isSelected && (
-          <Html position={[0, 0.8, 0]} center>
+          <Html position={[0, MOON_RADIUS * 1.6, 0]} center>
             <div className="bg-[rgba(0,0,0,0.8)] border border-[rgba(136,136,136,0.5)] px-2 py-1 rounded text-xs whitespace-nowrap">
               <span className="text-[#cccccc] font-mono">MOON</span>
             </div>
@@ -780,13 +876,16 @@ function OrbitZones() {
         
         return (
           <group key={zone.name}>
-            {/* Main orbit ring - horizontal */}
+            {/* Main orbit ring - horizontal, dashed to distinguish from satellite orbits */}
             <Line
               points={generateCircle(zone.radius)}
               color={zone.color}
-              lineWidth={isSelected ? 2 : 1.5}
-              opacity={isSelected ? 0.6 : 0.35}
+              lineWidth={isSelected ? 2 : 1}
+              opacity={isSelected ? 0.45 : 0.2}
               transparent
+              dashed
+              dashSize={0.15}
+              gapSize={0.1}
             />
             
             {/* Label - clickable */}
@@ -971,7 +1070,7 @@ export function EarthScene({
 
   return (
     <Canvas
-      camera={{ position: [0, 2, 6], fov: 45 }}
+      camera={{ position: [0, 3, 10], fov: 45 }}
       gl={{ antialias: true, alpha: true }}
       style={{ background: 'transparent' }}
     >
@@ -1004,7 +1103,7 @@ export function EarthScene({
         enablePan={false}
         enableZoom={true}
         minDistance={4}
-        maxDistance={15}
+        maxDistance={40}
         autoRotate={false}
         enableDamping
         dampingFactor={0.05}
