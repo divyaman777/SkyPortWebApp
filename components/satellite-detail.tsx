@@ -444,10 +444,15 @@ function VideoStream({ satellite }: { satellite: Satellite }) {
 
 // ─── Real Data Feed Components ─────────────────────────────
 
+// Known NASA ISS live stream video IDs — NASA rotates these periodically
+const ISS_STREAM_IDS = ['zPH5KtjJFaQ', 'sWasdbDVNvc', 'P9C25Un7xaM', 'xRPjKQtRXR8'];
+
 // ISS Live Stream + Crew
 function ISSDataFeed({ satellite }: { satellite: Satellite }) {
   const [crew, setCrew] = useState<{ name: string; craft: string }[]>([]);
   const [crewError, setCrewError] = useState(false);
+  const [streamIdx, setStreamIdx] = useState(0);
+  const [showFallback, setShowFallback] = useState(false);
 
   useEffect(() => {
     cachedFetch<{ people: { name: string; craft: string }[] }>(
@@ -462,6 +467,14 @@ function ISSDataFeed({ satellite }: { satellite: Satellite }) {
     }).catch(() => setCrewError(true));
   }, []);
 
+  const tryNextStream = () => {
+    if (streamIdx < ISS_STREAM_IDS.length - 1) {
+      setStreamIdx(prev => prev + 1);
+    } else {
+      setShowFallback(true);
+    }
+  };
+
   return (
     <div className="space-y-3">
       {/* Live video embed */}
@@ -472,14 +485,43 @@ function ISSDataFeed({ satellite }: { satellite: Satellite }) {
           <span className="ml-auto inline-block w-2 h-2 bg-[#FF4444] rounded-full animate-pulse" />
           <span className="text-[#FF4444] text-[10px]">LIVE</span>
         </div>
-        <div className="aspect-video">
-          <iframe
-            src="https://www.youtube.com/embed/xRPjKQtRXR8?autoplay=0&mute=1"
-            className="w-full h-full"
-            allow="accelerometer; autoplay; encrypted-media; gyroscope"
-            allowFullScreen
-            title="ISS Live Stream"
-          />
+        {!showFallback ? (
+          <div className="aspect-video">
+            <iframe
+              src={`https://www.youtube.com/embed/${ISS_STREAM_IDS[streamIdx]}?autoplay=0&mute=1`}
+              className="w-full h-full"
+              allow="accelerometer; autoplay; encrypted-media; gyroscope"
+              allowFullScreen
+              title="ISS Live Stream"
+            />
+          </div>
+        ) : (
+          <div className="aspect-video relative">
+            <VideoStream satellite={satellite} />
+          </div>
+        )}
+        {/* Controls below video */}
+        <div className="flex items-center gap-2 px-3 py-2 border-t border-[rgba(0,255,65,0.15)]">
+          {!showFallback && (
+            <button
+              onClick={tryNextStream}
+              className="text-[10px] font-mono text-[#FFB300] hover:text-[#FFD54F] transition-colors"
+            >
+              VIDEO UNAVAILABLE? TRY NEXT →
+            </button>
+          )}
+          {showFallback && (
+            <span className="text-[10px] font-mono text-muted-foreground">SIMULATED FEED — OPEN LIVE ↗</span>
+          )}
+          <a
+            href="https://www.nasa.gov/live/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-auto text-[10px] font-mono text-[#00D4FF] hover:text-[#4DE8FF] flex items-center gap-1 transition-colors"
+          >
+            <ExternalLink className="w-2.5 h-2.5" />
+            NASA LIVE
+          </a>
         </div>
       </div>
 
