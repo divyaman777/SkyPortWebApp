@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Radio, Tv, Antenna, Wifi, ExternalLink, RefreshCw, Image as ImageIcon } from 'lucide-react';
 import { Satellite, categoryColors } from '@/lib/satellite-data';
 import { REGISTRY_MAP, type SatelliteRegistryEntry, type DataFeed } from '@/lib/satellite-registry';
@@ -158,29 +158,128 @@ function TextDataStream({ satellite }: { satellite: Satellite }) {
   );
 }
 
-// Audio stream component with visualizer
+// Audio stream component with visualizer and playable radio signal
 function AudioStream({ satellite }: { satellite: Satellite }) {
   const [bars, setBars] = useState<number[]>(Array(20).fill(0));
   const [frequency, setFrequency] = useState('145.800');
-  
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const oscillatorsRef = useRef<OscillatorNode[]>([]);
+  const gainRef = useRef<GainNode | null>(null);
+  const noiseIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
     // Simulate audio visualization
     const interval = setInterval(() => {
       setBars(prev => prev.map(() => Math.random() * 100));
     }, 100);
-    
+
     // Simulate frequency scanning
     const freqInterval = setInterval(() => {
       const freqs = ['145.800', '437.550', '435.900', '146.520', '432.100'];
       setFrequency(freqs[Math.floor(Math.random() * freqs.length)]);
     }, 3000);
-    
+
     return () => {
       clearInterval(interval);
       clearInterval(freqInterval);
+      stopAudio();
     };
   }, []);
-  
+
+  const stopAudio = () => {
+    oscillatorsRef.current.forEach(osc => { try { osc.stop(); } catch {} });
+    oscillatorsRef.current = [];
+    if (noiseIntervalRef.current) clearInterval(noiseIntervalRef.current);
+    if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+      audioCtxRef.current.close().catch(() => {});
+    }
+    audioCtxRef.current = null;
+    gainRef.current = null;
+  };
+
+  const toggleAudio = () => {
+    if (isPlaying) {
+      stopAudio();
+      setIsPlaying(false);
+      return;
+    }
+
+    // Create Web Audio context for radio signal synthesis
+    const ctx = new AudioContext();
+    audioCtxRef.current = ctx;
+
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = 0.15;
+    masterGain.connect(ctx.destination);
+    gainRef.current = masterGain;
+
+    // Carrier tone — base frequency from satellite data
+    const baseFreq = parseFloat(frequency) || 145.8;
+    const carrier = ctx.createOscillator();
+    carrier.type = 'sine';
+    carrier.frequency.value = 800 + (baseFreq % 10) * 50; // Map to audible range
+    const carrierGain = ctx.createGain();
+    carrierGain.gain.value = 0.3;
+    carrier.connect(carrierGain).connect(masterGain);
+    carrier.start();
+    oscillatorsRef.current.push(carrier);
+
+    // Subcarrier — slight detuning for FM texture
+    const sub = ctx.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.value = carrier.frequency.value + 15;
+    const subGain = ctx.createGain();
+    subGain.gain.value = 0.15;
+    sub.connect(subGain).connect(masterGain);
+    sub.start();
+    oscillatorsRef.current.push(sub);
+
+    // Telemetry beeps — periodic short bursts
+    const beepOsc = ctx.createOscillator();
+    beepOsc.type = 'square';
+    beepOsc.frequency.value = 1200;
+    const beepGain = ctx.createGain();
+    beepGain.gain.value = 0;
+    beepOsc.connect(beepGain).connect(masterGain);
+    beepOsc.start();
+    oscillatorsRef.current.push(beepOsc);
+
+    // Schedule telemetry beep pattern
+    let beepTime = ctx.currentTime + 0.5;
+    const scheduleBeeps = () => {
+      const now = ctx.currentTime;
+      for (let i = 0; i < 4; i++) {
+        const t = now + i * 0.3;
+        beepGain.gain.setValueAtTime(0.2, t);
+        beepGain.gain.setValueAtTime(0, t + 0.08);
+      }
+    };
+    scheduleBeeps();
+    noiseIntervalRef.current = setInterval(scheduleBeeps, 2000);
+
+    // Static noise — white noise via buffer
+    const bufferSize = ctx.sampleRate * 2;
+    const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * 0.5;
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuffer;
+    noise.loop = true;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.value = 0.08;
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.value = 1000;
+    noiseFilter.Q.value = 0.5;
+    noise.connect(noiseFilter).connect(noiseGain).connect(masterGain);
+    noise.start();
+
+    setIsPlaying(true);
+  };
+
   return (
     <div className="bg-[rgba(0,0,0,0.5)] border border-[rgba(0,212,255,0.3)] rounded p-3">
       <div className="flex items-center justify-between mb-3">
@@ -190,23 +289,44 @@ function AudioStream({ satellite }: { satellite: Satellite }) {
         </div>
         <div className="text-xs font-mono text-[#FFB300]">{frequency} MHz</div>
       </div>
-      
+
       {/* Audio visualizer bars */}
       <div className="flex items-end justify-center gap-1 h-16 bg-[rgba(0,0,0,0.3)] rounded p-2">
         {bars.map((height, i) => (
           <div
             key={i}
-            className="w-2 bg-gradient-to-t from-[#00D4FF] to-[#00FF41] rounded-sm transition-all duration-100"
-            style={{ height: `${Math.max(height, 5)}%` }}
+            className="w-2 rounded-sm transition-all duration-100"
+            style={{
+              height: `${Math.max(height, 5)}%`,
+              background: isPlaying
+                ? `linear-gradient(to top, #00D4FF, #00FF41)`
+                : `linear-gradient(to top, #00D4FF44, #00FF4144)`,
+            }}
           />
         ))}
       </div>
-      
+
+      {/* Play/Stop button */}
+      <button
+        onClick={toggleAudio}
+        className={`w-full mt-3 py-2 px-3 text-xs font-mono font-bold rounded transition-all flex items-center justify-center gap-2 ${
+          isPlaying
+            ? 'bg-[rgba(255,68,68,0.2)] border border-[rgba(255,68,68,0.5)] text-[#FF4444] hover:bg-[rgba(255,68,68,0.3)]'
+            : 'bg-[rgba(0,255,65,0.15)] border border-[rgba(0,255,65,0.5)] text-[#00FF41] hover:bg-[rgba(0,255,65,0.25)]'
+        }`}
+      >
+        {isPlaying ? (
+          <><span className="inline-block w-2.5 h-2.5 bg-[#FF4444] rounded-sm" /> STOP RADIO</>
+        ) : (
+          <><span className="inline-block w-0 h-0 border-l-[8px] border-l-[#00FF41] border-y-[5px] border-y-transparent" /> PLAY RADIO SIGNAL</>
+        )}
+      </button>
+
       <div className="flex items-center justify-between mt-3 text-xs font-mono">
-        <span className="text-muted-foreground">SIGNAL: STRONG</span>
-        <span className="text-[#00FF41]">DECODING...</span>
+        <span className="text-muted-foreground">SIGNAL: {isPlaying ? 'RECEIVING' : 'STANDBY'}</span>
+        <span className={isPlaying ? 'text-[#00FF41]' : 'text-muted-foreground'}>{isPlaying ? 'DECODING...' : 'IDLE'}</span>
       </div>
-      
+
       {/* Simulated decoded messages */}
       <div className="mt-2 text-xs font-mono text-[#00D4FF] opacity-80">
         <div>&gt; CQ CQ CQ DE {satellite.name.substring(0, 6).toUpperCase()}</div>

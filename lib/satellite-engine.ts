@@ -462,3 +462,95 @@ export function predictNextPass(
 
   return null;
 }
+
+// ─── ECI Position Functions (for 3D rendering) ──────────────
+
+/** Returns GMST in radians for the given date */
+export function getGMST(date: Date): number {
+  return satellite.gstime(date);
+}
+
+/** Compute raw ECI position for a satellite (km) */
+export function computeECIPosition(noradId: number, date?: Date): { eciX: number; eciY: number; eciZ: number; altitude: number; velocity: number } | null {
+  const tle = tleStore.get(noradId);
+  if (!tle) return null;
+
+  const now = date || new Date();
+  const posVel = satellite.propagate(tle.satrec, now);
+  if (!posVel.position || typeof posVel.position === 'boolean') return null;
+
+  const posEci = posVel.position as satellite.EciVec3<number>;
+  const velEci = posVel.velocity as satellite.EciVec3<number>;
+
+  const distKm = Math.sqrt(posEci.x ** 2 + posEci.y ** 2 + posEci.z ** 2);
+  const altitude = distKm - 6371;
+  const velocity = Math.sqrt(velEci.x ** 2 + velEci.y ** 2 + velEci.z ** 2);
+
+  return { eciX: posEci.x, eciY: posEci.y, eciZ: posEci.z, altitude, velocity };
+}
+
+/** Compute one full orbit in ECI coordinates */
+export function computeOrbitPathECI(noradId: number, stepSeconds: number = 30): { eciX: number; eciY: number; eciZ: number; altitude: number }[] {
+  const tle = tleStore.get(noradId);
+  if (!tle) return [];
+
+  const periodMinutes = (2 * Math.PI) / tle.satrec.no;
+  const now = Date.now();
+  const points: { eciX: number; eciY: number; eciZ: number; altitude: number }[] = [];
+
+  for (let t = 0; t <= periodMinutes * 60; t += stepSeconds) {
+    const date = new Date(now + t * 1000);
+    const posVel = satellite.propagate(tle.satrec, date);
+    if (!posVel.position || typeof posVel.position === 'boolean') continue;
+    const posEci = posVel.position as satellite.EciVec3<number>;
+    const distKm = Math.sqrt(posEci.x ** 2 + posEci.y ** 2 + posEci.z ** 2);
+    points.push({ eciX: posEci.x, eciY: posEci.y, eciZ: posEci.z, altitude: distKm - 6371 });
+  }
+
+  if (points.length > 2) points.push({ ...points[0] });
+  return points;
+}
+
+/** Compute Moon position as ECI unit vector */
+export function computeMoonPositionECI(date?: Date): { eciX: number; eciY: number; eciZ: number; distance: number } {
+  const now = date || new Date();
+  const equ = Astronomy.Equator(Astronomy.Body.Moon, now, new Astronomy.Observer(0, 0, 0), true, true);
+
+  const raRad = equ.ra * (Math.PI / 12);
+  const decRad = equ.dec * (Math.PI / 180);
+
+  return {
+    eciX: Math.cos(decRad) * Math.cos(raRad),
+    eciY: Math.cos(decRad) * Math.sin(raRad),
+    eciZ: Math.sin(decRad),
+    distance: equ.dist * 149597870.7,
+  };
+}
+
+/** Compute Moon orbital plane normal via cross product of two positions ~7 days apart */
+export function computeMoonOrbitNormal(): { eciX: number; eciY: number; eciZ: number } {
+  const now = new Date();
+  const pos1 = computeMoonPositionECI(now);
+  const pos2 = computeMoonPositionECI(new Date(now.getTime() + 7 * 86400000));
+
+  // Cross product pos1 × pos2 = normal to orbital plane
+  const nx = pos1.eciY * pos2.eciZ - pos1.eciZ * pos2.eciY;
+  const ny = pos1.eciZ * pos2.eciX - pos1.eciX * pos2.eciZ;
+  const nz = pos1.eciX * pos2.eciY - pos1.eciY * pos2.eciX;
+  const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+
+  return { eciX: nx / len, eciY: ny / len, eciZ: nz / len };
+}
+
+/** JWST position as anti-sunward ECI unit vector */
+export function getJWSTPositionECI(date?: Date): { eciX: number; eciY: number; eciZ: number } {
+  const now = date || new Date();
+  const sunEqu = Astronomy.Equator(Astronomy.Body.Sun, now, new Astronomy.Observer(0, 0, 0), true, true);
+  const raRad = sunEqu.ra * (Math.PI / 12);
+  const decRad = sunEqu.dec * (Math.PI / 180);
+  return {
+    eciX: -Math.cos(decRad) * Math.cos(raRad),
+    eciY: -Math.cos(decRad) * Math.sin(raRad),
+    eciZ: -Math.sin(decRad),
+  };
+}

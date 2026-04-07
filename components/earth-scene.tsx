@@ -5,7 +5,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { Satellite, categoryColors, SatelliteCategory } from '@/lib/satellite-data';
-import { computeOrbitPath as computeRealOrbitPath, computeMoonPosition } from '@/lib/satellite-engine';
+import { computeECIPosition, computeOrbitPathECI, computeMoonPositionECI, computeMoonOrbitNormal, getJWSTPositionECI, getGMST } from '@/lib/satellite-engine';
 
 // Detailed continent outlines as [lon, lat] coordinate arrays
 const CONTINENT_DATA: Record<string, number[][]> = {
@@ -192,32 +192,44 @@ function latLonToVector3(lat: number, lon: number, radius: number): THREE.Vector
   return new THREE.Vector3(x, y, z);
 }
 
-// Generate orbital path points - orbit must be OUTSIDE Earth (radius 2)
-function generateOrbitPath(inclination: number, altitude: number, startLon: number, orbitRadius: number): THREE.Vector3[] {
-  const points: THREE.Vector3[] = [];
-  // Use the same orbit radius as the satellite itself to match
-  const radius = orbitRadius;
-  const incRad = (inclination * Math.PI) / 180;
-  
-  for (let i = 0; i <= 360; i += 2) {
-    const angle = (i * Math.PI) / 180;
-    const x = radius * Math.cos(angle);
-    const z = radius * Math.sin(angle);
-    
-    const y = z * Math.sin(incRad);
-    const zRotated = z * Math.cos(incRad);
-    
-    const lonRad = (startLon * Math.PI) / 180;
-    const xFinal = x * Math.cos(lonRad) - zRotated * Math.sin(lonRad);
-    const zFinal = x * Math.sin(lonRad) + zRotated * Math.cos(lonRad);
-    
-    points.push(new THREE.Vector3(xFinal, y, zFinal));
-  }
-  
-  return points;
+// ─── ECI Coordinate Helpers ─────────────────────────────────
+const EARTH_RADIUS_KM = 6371;
+
+// Convert ECI satellite position to Three.js, scaling by visual orbit radius
+function eciToThreeJSSat(eciX: number, eciY: number, eciZ: number): THREE.Vector3 {
+  const distKm = Math.sqrt(eciX ** 2 + eciY ** 2 + eciZ ** 2);
+  const altKm = distKm - EARTH_RADIUS_KM;
+  const visualR = getOrbitRadius(altKm);
+  const scale = visualR / distKm;
+  // ECI X → Three X, ECI Z (north pole) → Three Y (up), ECI Y → -Three Z
+  return new THREE.Vector3(eciX * scale, eciZ * scale, -eciY * scale);
 }
 
-// Earth rotation state - shared between Earth and orbit calculations
+// Convert ECI unit direction to Three.js position at given radius
+function eciDirToThreeJS(eciX: number, eciY: number, eciZ: number, radius: number): THREE.Vector3 {
+  const dist = Math.sqrt(eciX ** 2 + eciY ** 2 + eciZ ** 2);
+  const scale = radius / dist;
+  return new THREE.Vector3(eciX * scale, eciZ * scale, -eciY * scale);
+}
+
+// Simulation time: 150x real-time for visible orbital motion
+const TIME_SCALE = 150;
+// Moon moves much slower than LEO sats — extra multiplier so its revolution is visible
+const MOON_SPEED_MULT = 40;
+const simStartReal = Date.now();
+const simStartDate = new Date();
+
+function getSimDate(): Date {
+  const realElapsed = Date.now() - simStartReal;
+  return new Date(simStartDate.getTime() + realElapsed * TIME_SCALE);
+}
+
+function getMoonSimDate(): Date {
+  const realElapsed = Date.now() - simStartReal;
+  return new Date(simStartDate.getTime() + realElapsed * TIME_SCALE * MOON_SPEED_MULT);
+}
+
+// Earth rotation state
 let earthRotation = 0;
 
 // Earth component with real world map outlines
@@ -235,9 +247,9 @@ function Earth() {
     return lines;
   }, []);
   
-  useFrame((_, delta) => {
+  useFrame(() => {
     if (earthRef.current) {
-      earthRotation += delta * 0.02;
+      earthRotation = getGMST(getSimDate());
       earthRef.current.rotation.y = earthRotation;
     }
   });
@@ -376,11 +388,6 @@ function ObserverMarker() {
   );
 }
 
-// Get current Earth rotation for orbit sync
-function getEarthRotation() {
-  return earthRotation;
-}
-
 // Moon orbit radius
 const MOON_ORBIT_RADIUS = 8;
 
@@ -388,48 +395,59 @@ const MOON_ORBIT_RADIUS = 8;
 interface MoonProps {
   isSelected: boolean;
   onMoonClick: () => void;
-  moonLat?: number;
-  moonLon?: number;
 }
 
-// Moon orbit inclination (slight tilt)
-const MOON_ORBIT_INCLINATION = 0.09; // ~5 degrees in radians
-
-function Moon({ isSelected, onMoonClick, moonLat, moonLon }: MoonProps) {
+function Moon({ isSelected, onMoonClick }: MoonProps) {
   const moonRef = useRef<THREE.Group>(null);
   const moonMeshRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
+  const lastMoonUpdate = useRef(0);
+  const moonTargetPos = useRef(new THREE.Vector3(MOON_ORBIT_RADIUS, 0, 0));
 
-  useFrame(() => {
-    if (moonRef.current) {
-      if (moonLat !== undefined && moonLon !== undefined) {
-        // Use real Moon position from astronomy-engine
-        const pos = latLonToVector3(moonLat, moonLon, MOON_ORBIT_RADIUS);
-        moonRef.current.position.lerp(pos, 0.05);
-      } else {
-        // Fallback: simple animated orbit
-        const time = Date.now() * 0.00005;
-        const x = Math.cos(time) * MOON_ORBIT_RADIUS;
-        const z = Math.sin(time) * MOON_ORBIT_RADIUS;
-        const y = MOON_ORBIT_RADIUS * Math.sin(time) * MOON_ORBIT_INCLINATION;
-        moonRef.current.position.set(x, y, z);
-      }
+  useFrame((_, delta) => {
+    // Compute Moon ECI position at accelerated moon time
+    const now = Date.now();
+    if (now - lastMoonUpdate.current > 50) {
+      lastMoonUpdate.current = now;
+      const moonDate = getMoonSimDate();
+      const moonEci = computeMoonPositionECI(moonDate);
+      moonTargetPos.current = eciDirToThreeJS(moonEci.eciX, moonEci.eciY, moonEci.eciZ, MOON_ORBIT_RADIUS);
     }
+    if (moonRef.current) {
+      moonRef.current.position.lerp(moonTargetPos.current, 0.15);
+    }
+    // Moon axis rotation (tidally locked — same period as orbit, accelerated by MOON_SPEED_MULT)
     if (moonMeshRef.current) {
-      moonMeshRef.current.rotation.y += 0.001;
+      moonMeshRef.current.rotation.y += delta * 0.0004 * TIME_SCALE * MOON_SPEED_MULT;
     }
   });
 
-  // Moon orbit path - must match moon position calculation exactly
+  // Moon orbit — smooth geometric ellipse in the computed orbital plane
   const moonOrbitPoints = useMemo(() => {
+    const normalEci = computeMoonOrbitNormal();
+    // Convert ECI normal to Three.js space
+    const normal = new THREE.Vector3(normalEci.eciX, normalEci.eciZ, -normalEci.eciY).normalize();
+
+    // Build orthonormal basis in the orbital plane
+    const arbitrary = Math.abs(normal.y) < 0.9
+      ? new THREE.Vector3(0, 1, 0)
+      : new THREE.Vector3(1, 0, 0);
+    const u = new THREE.Vector3().crossVectors(arbitrary, normal).normalize();
+    const v = new THREE.Vector3().crossVectors(normal, u).normalize();
+
+    // Smooth ellipse (Moon eccentricity ~0.0549)
+    const a = MOON_ORBIT_RADIUS;
+    const b = MOON_ORBIT_RADIUS * Math.sqrt(1 - 0.0549 * 0.0549); // ≈ 0.9985
     const points: THREE.Vector3[] = [];
-    for (let i = 0; i <= 360; i += 2) {
+    for (let i = 0; i <= 360; i++) {
       const angle = (i * Math.PI) / 180;
-      const x = Math.cos(angle) * MOON_ORBIT_RADIUS;
-      const z = Math.sin(angle) * MOON_ORBIT_RADIUS;
-      // Apply inclination - same formula as moon position
-      const y = MOON_ORBIT_RADIUS * Math.sin(angle) * MOON_ORBIT_INCLINATION;
-      points.push(new THREE.Vector3(x, y, z));
+      const px = a * Math.cos(angle);
+      const py = b * Math.sin(angle);
+      points.push(new THREE.Vector3(
+        px * u.x + py * v.x,
+        px * u.y + py * v.y,
+        px * u.z + py * v.z,
+      ));
     }
     return points;
   }, []);
@@ -558,35 +576,39 @@ function SatelliteMarker({
   onPointerOver,
   onPointerOut,
 }: SatelliteMarkerProps) {
-  const earthRotGroupRef = useRef<THREE.Group>(null);
   const satelliteRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
 
   const color = categoryColors[satellite.category];
   const isISS = satellite.category === 'SPACE_STATION';
 
-  const orbitRadius = getOrbitRadius(satellite.altitude);
-
-  // Position satellite using real lat/lng from TLE propagation
+  // Position satellite using ECI coordinates (inertial frame)
   useFrame(() => {
-    // Rotate outer group with Earth (so lat/lng coordinates stay aligned)
-    if (earthRotGroupRef.current) {
-      earthRotGroupRef.current.rotation.y = getEarthRotation();
-    }
-
-    // Set satellite position from real lat/lng
     if (satelliteRef.current) {
-      const pos = latLonToVector3(satellite.latitude, satellite.longitude, orbitRadius);
-      // Lerp for smooth movement between position updates
-      satelliteRef.current.position.lerp(pos, 0.1);
+      const simDate = getSimDate();
+      let pos: THREE.Vector3 | null = null;
+
+      if (satellite.special === 'L2_POINT') {
+        // JWST: anti-sunward direction at visual radius
+        const eciDir = getJWSTPositionECI(simDate);
+        pos = eciDirToThreeJS(eciDir.eciX, eciDir.eciY, eciDir.eciZ, getOrbitRadius(satellite.altitude));
+      } else {
+        const eciPos = computeECIPosition(satellite.noradId, simDate);
+        if (eciPos) {
+          pos = eciToThreeJSSat(eciPos.eciX, eciPos.eciY, eciPos.eciZ);
+        }
+      }
+
+      if (pos) {
+        satelliteRef.current.position.lerp(pos, 0.2);
+      }
     }
   });
   
   const satelliteScale = isISS ? 1.5 : isSelected || hovered ? 1.2 : 1;
   
   return (
-    <group ref={earthRotGroupRef}>
-      <group ref={satelliteRef}>
+    <group ref={satelliteRef}>
       <group
         onClick={onClick}
         onPointerOver={(e) => {
@@ -676,7 +698,6 @@ function SatelliteMarker({
           </div>
         </Html>
       )}
-      </group>
     </group>
   );
 }
@@ -687,15 +708,14 @@ interface OrbitPathProps {
 }
 
 function OrbitPath({ satellite }: OrbitPathProps) {
-  const orbitRef = useRef<THREE.Group>(null);
   const color = categoryColors[satellite.category];
   const isGeo = satellite.special === 'GEOSTATIONARY' || satellite.altitude > 35000;
 
-  // Compute real orbit path from TLE propagation
+  // Compute orbit path in ECI coordinates (proper circle/ellipse in inertial frame)
   const orbitPoints = useMemo(() => {
     if (satellite.noradId <= 0) return [];
 
-    // For geostationary sats, draw an equatorial ring
+    // For geostationary sats, draw an equatorial ring in ECI
     if (isGeo) {
       const geoRadius = getOrbitRadius(satellite.altitude);
       const points: THREE.Vector3[] = [];
@@ -710,39 +730,27 @@ function OrbitPath({ satellite }: OrbitPathProps) {
       return points;
     }
 
-    // For LEO/MEO sats, compute 90 minutes of real positions
+    // For LEO/MEO sats, compute one full orbit in ECI (proper circular path)
     try {
-      const positions = computeRealOrbitPath(satellite.noradId, 92, 20);
-      if (positions.length < 2) return [];
+      const eciPositions = computeOrbitPathECI(satellite.noradId, 20);
+      if (eciPositions.length < 2) return [];
 
-      return positions.map(pos => {
-        const radius = getOrbitRadius(pos.altitude);
-        return latLonToVector3(pos.latitude, pos.longitude, radius);
-      });
+      return eciPositions.map(pos => eciToThreeJSSat(pos.eciX, pos.eciY, pos.eciZ));
     } catch {
       return [];
     }
   }, [satellite.noradId, satellite.altitude, isGeo]);
 
-  // Rotate with Earth so orbit positions stay aligned with globe
-  useFrame(() => {
-    if (orbitRef.current) {
-      orbitRef.current.rotation.y = isGeo ? 0 : getEarthRotation();
-    }
-  });
-
   if (orbitPoints.length < 2) return null;
 
   return (
-    <group ref={orbitRef}>
-      <Line
-        points={orbitPoints}
-        color={color}
-        lineWidth={2}
-        opacity={0.6}
-        transparent
-      />
-    </group>
+    <Line
+      points={orbitPoints}
+      color={color}
+      lineWidth={2}
+      opacity={0.6}
+      transparent
+    />
   );
 }
 
@@ -1040,23 +1048,6 @@ function BackgroundClick({ onBackgroundClick }: BackgroundClickProps) {
   );
 }
 
-// Inner component to use Three.js hooks (must be inside Canvas)
-function MoonPositionUpdater({ onMoonPosition }: { onMoonPosition: (lat: number, lon: number) => void }) {
-  const lastUpdate = useRef(0);
-
-  useFrame(() => {
-    const now = Date.now();
-    if (now - lastUpdate.current > 5000) { // Update every 5 seconds
-      lastUpdate.current = now;
-      computeMoonPosition().then(pos => {
-        onMoonPosition(pos.latitude, pos.longitude);
-      }).catch(() => {});
-    }
-  });
-
-  return null;
-}
-
 // Main component
 export function EarthScene({
   satellites,
@@ -1066,7 +1057,6 @@ export function EarthScene({
   filters
 }: EarthSceneProps) {
   const [moonSelected, setMoonSelected] = useState(false);
-  const [moonPos, setMoonPos] = useState<{ lat: number; lon: number } | null>(null);
 
   const handleSatelliteClick = (satellite: Satellite) => {
     setMoonSelected(false);
@@ -1098,16 +1088,11 @@ export function EarthScene({
       {/* Invisible background sphere to catch clicks */}
       <BackgroundClick onBackgroundClick={handleBackgroundClick} />
 
-      {/* Moon position updater */}
-      <MoonPositionUpdater onMoonPosition={(lat, lon) => setMoonPos({ lat, lon })} />
-
       <Suspense fallback={<LoadingFallback />}>
         <Earth />
         <Moon
           isSelected={moonSelected}
           onMoonClick={handleMoonClick}
-          moonLat={moonPos?.lat}
-          moonLon={moonPos?.lon}
         />
         <GridLines />
         <OrbitZones />
