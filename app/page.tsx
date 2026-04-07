@@ -133,41 +133,76 @@ export default function Skyport() {
         
         <div className="flex flex-col items-center z-10 px-4">
           {/* Animated Earth and Satellite Logo */}
-          <div className="relative w-40 h-40 mb-8">
+          <div className="relative w-52 h-52 mb-8">
+            {/* Outer glow pulse */}
+            <div className="absolute inset-0 rounded-full bg-[#00D4FF] opacity-10 blur-xl animate-pulse" />
+            
             {/* Earth */}
-            <div className="absolute inset-4 rounded-full bg-gradient-to-br from-[#1a5276] via-[#0a3d62] to-[#0c1821] shadow-[0_0_60px_rgba(0,212,255,0.3)]">
-              {/* Continent hints */}
+            <div className="absolute inset-6 rounded-full bg-gradient-to-br from-[#2980b9] via-[#1a5276] to-[#0c1821] shadow-[0_0_80px_rgba(0,212,255,0.5),inset_0_0_30px_rgba(0,0,0,0.5)]">
+              {/* Ocean shimmer */}
               <div className="absolute inset-0 rounded-full overflow-hidden">
-                <div className="absolute top-[20%] left-[25%] w-[30%] h-[25%] bg-[#2d5016] opacity-40 rounded-full blur-[2px]" />
-                <div className="absolute top-[45%] left-[15%] w-[20%] h-[30%] bg-[#2d5016] opacity-30 rounded-full blur-[2px]" />
-                <div className="absolute top-[30%] right-[20%] w-[25%] h-[35%] bg-[#2d5016] opacity-35 rounded-full blur-[2px]" />
+                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-[#00D4FF] to-transparent opacity-20 animate-pulse" style={{ animationDuration: '4s' }} />
               </div>
-              {/* Atmosphere glow */}
-              <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-transparent via-[#00D4FF] to-transparent opacity-20 blur-sm" />
+              {/* Continents */}
+              <div className="absolute inset-0 rounded-full overflow-hidden">
+                <div className="absolute top-[15%] left-[20%] w-[35%] h-[30%] bg-gradient-to-br from-[#4a7c23] to-[#2d5016] opacity-60 rounded-full blur-[1px]" />
+                <div className="absolute top-[50%] left-[10%] w-[25%] h-[35%] bg-gradient-to-br from-[#4a7c23] to-[#2d5016] opacity-50 rounded-full blur-[1px]" />
+                <div className="absolute top-[25%] right-[15%] w-[30%] h-[40%] bg-gradient-to-br from-[#4a7c23] to-[#2d5016] opacity-55 rounded-full blur-[1px]" />
+                <div className="absolute bottom-[20%] right-[25%] w-[20%] h-[15%] bg-gradient-to-br from-[#4a7c23] to-[#2d5016] opacity-45 rounded-full blur-[1px]" />
+              </div>
+              {/* Cloud layer */}
+              <div className="absolute inset-0 rounded-full overflow-hidden">
+                <div className="absolute top-[10%] left-[30%] w-[40%] h-[15%] bg-white opacity-20 rounded-full blur-[3px]" />
+                <div className="absolute top-[60%] left-[20%] w-[30%] h-[10%] bg-white opacity-15 rounded-full blur-[3px]" />
+                <div className="absolute top-[35%] right-[10%] w-[25%] h-[12%] bg-white opacity-18 rounded-full blur-[3px]" />
+              </div>
+              {/* Atmosphere rim light */}
+              <div className="absolute -inset-1 rounded-full border-2 border-[#00D4FF] opacity-30 blur-[1px]" />
+              <div className="absolute -inset-2 rounded-full border border-[#00D4FF] opacity-15" />
             </div>
             
-            {/* Orbit ring */}
-            <div className="absolute inset-0 rounded-full border border-[#00FF41] opacity-40" 
-                 style={{ transform: 'rotateX(75deg)' }} />
+            {/* Primary orbit ring - glowing */}
+            <div className="absolute inset-1 rounded-full border-2 border-[#00FF41] opacity-50" 
+                 style={{ transform: 'rotateX(70deg)', boxShadow: '0 0 15px rgba(0,255,65,0.4)' }} />
             
-            {/* Orbiting satellite */}
-            <div className="absolute inset-0 animate-spin" style={{ animationDuration: '3s' }}>
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1">
-                {/* Satellite body */}
+            {/* Satellite 1 - Main orbiter (slow) */}
+            <div className="absolute inset-1 animate-spin" style={{ animationDuration: '8s', animationTimingFunction: 'linear' }}>
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2">
                 <div className="relative">
-                  <div className="w-3 h-2 bg-[#c0c0c0] rounded-sm shadow-[0_0_10px_rgba(0,255,65,0.8)]" />
+                  {/* Satellite body */}
+                  <div className="w-4 h-3 bg-gradient-to-b from-[#e0e0e0] to-[#a0a0a0] rounded-sm shadow-[0_0_15px_rgba(0,255,65,1)]" />
                   {/* Solar panels */}
-                  <div className="absolute top-1/2 -translate-y-1/2 -left-3 w-3 h-1 bg-[#00D4FF] opacity-80" />
-                  <div className="absolute top-1/2 -translate-y-1/2 -right-3 w-3 h-1 bg-[#00D4FF] opacity-80" />
-                  {/* Signal waves */}
-                  <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 bg-[#00FF41] rounded-full animate-ping" />
+                  <div className="absolute top-1/2 -translate-y-1/2 -left-4 w-4 h-1.5 bg-gradient-to-r from-[#00D4FF] to-[#0088aa] shadow-[0_0_8px_rgba(0,212,255,0.8)]" />
+                  <div className="absolute top-1/2 -translate-y-1/2 -right-4 w-4 h-1.5 bg-gradient-to-l from-[#00D4FF] to-[#0088aa] shadow-[0_0_8px_rgba(0,212,255,0.8)]" />
+                  {/* Signal beam */}
+                  <div className="absolute -bottom-3 left-1/2 -translate-x-1/2">
+                    <div className="w-1.5 h-1.5 bg-[#00FF41] rounded-full animate-ping shadow-[0_0_10px_#00FF41]" />
+                  </div>
                 </div>
               </div>
             </div>
             
-            {/* Second orbit ring */}
-            <div className="absolute inset-2 rounded-full border border-dashed border-[#00D4FF] opacity-20" 
-                 style={{ transform: 'rotateX(75deg) rotateZ(45deg)' }} />
+            {/* Secondary orbit ring */}
+            <div className="absolute inset-3 rounded-full border border-dashed border-[#00D4FF] opacity-30" 
+                 style={{ transform: 'rotateX(70deg) rotateZ(60deg)' }} />
+            
+            {/* Satellite 2 - Secondary orbiter (different speed/direction) */}
+            <div className="absolute inset-3 animate-spin" style={{ animationDuration: '12s', animationTimingFunction: 'linear', animationDirection: 'reverse' }}>
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1">
+                <div className="w-2 h-1.5 bg-gradient-to-b from-[#d0d0d0] to-[#909090] rounded-sm shadow-[0_0_10px_rgba(255,179,0,0.8)]" />
+              </div>
+            </div>
+            
+            {/* Tertiary orbit ring - outer */}
+            <div className="absolute -inset-2 rounded-full border border-[#FFB300] opacity-20" 
+                 style={{ transform: 'rotateX(70deg) rotateZ(-30deg)' }} />
+            
+            {/* Data stream particles */}
+            <div className="absolute inset-0">
+              <div className="absolute top-[20%] left-[10%] w-1 h-1 bg-[#00FF41] rounded-full animate-ping opacity-60" style={{ animationDelay: '0s', animationDuration: '2s' }} />
+              <div className="absolute top-[70%] right-[15%] w-1 h-1 bg-[#00D4FF] rounded-full animate-ping opacity-60" style={{ animationDelay: '0.5s', animationDuration: '2.5s' }} />
+              <div className="absolute bottom-[30%] left-[20%] w-1 h-1 bg-[#FFB300] rounded-full animate-ping opacity-60" style={{ animationDelay: '1s', animationDuration: '2s' }} />
+            </div>
           </div>
           
           {/* Logo Text */}
