@@ -122,8 +122,9 @@ function eciDirToThreeJS(eciX: number, eciY: number, eciZ: number, radius: numbe
   return new THREE.Vector3(eciX * scale, eciZ * scale, -eciY * scale);
 }
 
-// Simulation time: 120x real-time — Earth rotates once per ~12 min, satellites still clickable
-const TIME_SCALE = 120;
+// Simulation time: 30x real-time — satellites orbit visibly but feel like real tracking
+// ISS completes one orbit in ~3 min, Earth rotates once per ~48 min
+const TIME_SCALE = 30;
 // Moon revolution multiplier — Moon orbits in ~22 min (real: 27.3 days per Earth rotation × 27.3)
 // Keeps Moon visibly moving without spinning unrealistically fast
 const MOON_SPEED_MULT = 15;
