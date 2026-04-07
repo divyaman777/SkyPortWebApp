@@ -572,30 +572,52 @@ function Moon({ isSelected, onMoonClick }: MoonProps) {
     return points;
   }, []);
 
-  // Load real NASA moon texture
+  // Load realistic moon textures (color map and bump map for craters)
   const [moonTexture, setMoonTexture] = useState<THREE.Texture | null>(null);
+  const [bumpTexture, setBumpTexture] = useState<THREE.Texture | null>(null);
   
   useEffect(() => {
     const loader = new THREE.TextureLoader();
-    // NASA Moon texture - high resolution lunar surface map
+    // Solar System Scope textures - reliable and detailed
+    const textureUrl = 'https://www.solarsystemscope.com/textures/download/2k_moon.jpg';
+    
     loader.load(
-      'https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/lroc_color_poles_1k.jpg',
+      textureUrl,
       (texture) => {
         texture.colorSpace = THREE.SRGBColorSpace;
         setMoonTexture(texture);
+        // Use same texture for bump mapping to create crater depth
+        setBumpTexture(texture.clone());
       },
       undefined,
-      () => {
-        // Fallback to a different source if NASA fails
+      (err) => {
+        console.log('[v0] Primary moon texture failed, trying fallback');
+        // Fallback texture
         loader.load(
-          'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/FullMoon2010.jpg/1024px-FullMoon2010.jpg',
+          'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/moon_1024.jpg',
           (texture) => {
             texture.colorSpace = THREE.SRGBColorSpace;
             setMoonTexture(texture);
+            setBumpTexture(texture.clone());
           }
         );
       }
     );
+  }, []);
+
+  // Generate thin orbital ring points
+  const orbitRingPoints = useMemo(() => {
+    const points: THREE.Vector3[] = [];
+    const segments = 64;
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2;
+      points.push(new THREE.Vector3(
+        Math.cos(angle) * 0.65,
+        0,
+        Math.sin(angle) * 0.65
+      ));
+    }
+    return points;
   }, []);
 
   return (
@@ -612,7 +634,7 @@ function Moon({ isSelected, onMoonClick }: MoonProps) {
       )}
 
       <group ref={moonRef} position={[MOON_ORBIT_RADIUS, 0, 0]}>
-        {/* Main Moon sphere with realistic NASA texture */}
+        {/* Main Moon sphere with realistic texture and bump mapping */}
         <mesh
           ref={moonMeshRef}
           onClick={onMoonClick}
@@ -630,59 +652,67 @@ function Moon({ isSelected, onMoonClick }: MoonProps) {
           {moonTexture ? (
             <meshStandardMaterial
               map={moonTexture}
-              roughness={0.95}
-              metalness={0}
+              bumpMap={bumpTexture}
+              bumpScale={0.015}
+              roughness={0.8}
+              metalness={0.1}
+              envMapIntensity={0.3}
             />
           ) : (
             <meshStandardMaterial
-              color="#a0a0a0"
-              roughness={0.95}
-              metalness={0}
+              color="#9a9a9a"
+              roughness={0.8}
+              metalness={0.1}
             />
           )}
         </mesh>
 
-        {/* Subtle atmospheric glow when selected */}
-        {isSelected && (
-          <mesh>
-            <sphereGeometry args={[0.53, 32, 32]} />
-            <meshBasicMaterial
-              color="#cccccc"
-              transparent
-              opacity={0.1}
-              side={THREE.BackSide}
-            />
-          </mesh>
-        )}
-
-        {/* Leader line from moon to label - only when selected */}
-        {isSelected && (
+        {/* Thin orbital ring around Moon - like in reference image */}
+        <group rotation={[Math.PI / 2 + 0.15, 0, 0.1]}>
           <Line
-            points={[
-              new THREE.Vector3(0, 0.52, 0),
-              new THREE.Vector3(0, 0.85, 0)
-            ]}
-            color="#666666"
-            lineWidth={1}
-            opacity={0.8}
+            points={orbitRingPoints}
+            color="#888888"
+            lineWidth={1.5}
+            opacity={0.6}
             transparent
           />
-        )}
+        </group>
 
-        {/* MOON label - only when hovered or selected */}
-        {(hovered || isSelected) && (
-          <Html position={[0, 1.0, 0]} center>
-            <div className="bg-[#1a1a1a] border border-[#444444] px-3 py-1.5 rounded-sm">
-              <span className="text-white font-mono text-sm font-medium tracking-wider">MOON</span>
-            </div>
-          </Html>
-        )}
+        {/* Subtle rim light effect */}
+        <mesh>
+          <sphereGeometry args={[0.51, 64, 64]} />
+          <meshBasicMaterial
+            color="#aaaaaa"
+            transparent
+            opacity={0.05}
+            side={THREE.BackSide}
+          />
+        </mesh>
+
+        {/* Leader line from moon to label */}
+        <Line
+          points={[
+            new THREE.Vector3(0, 0.52, 0),
+            new THREE.Vector3(0, 0.8, 0)
+          ]}
+          color="#555555"
+          lineWidth={1}
+          opacity={0.9}
+          transparent
+        />
+
+        {/* MOON label - always visible */}
+        <Html position={[0, 0.95, 0]} center>
+          <div className="bg-[#111111] border border-[#333333] px-4 py-1.5 rounded">
+            <span className="text-[#e0e0e0] font-mono text-sm font-medium tracking-widest">MOON</span>
+          </div>
+        </Html>
 
         {/* Selection highlight ring */}
         {isSelected && (
           <mesh rotation={[Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.58, 0.62, 32]} />
-            <meshBasicMaterial color="#888888" transparent opacity={0.5} side={THREE.DoubleSide} />
+            <ringGeometry args={[0.56, 0.58, 48]} />
+            <meshBasicMaterial color="#aaaaaa" transparent opacity={0.4} side={THREE.DoubleSide} />
           </mesh>
         )}
       </group>
