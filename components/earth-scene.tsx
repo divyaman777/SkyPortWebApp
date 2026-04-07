@@ -1,12 +1,32 @@
 'use client';
 
-import { useRef, useState, useMemo, Suspense } from 'react';
+import { useRef, useState, useMemo, Suspense, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { Satellite, categoryColors, SatelliteCategory } from '@/lib/satellite-data';
 
-// Detailed continent outlines as [lon, lat] coordinate arrays
+// GeoJSON types
+interface GeoJSONGeometry {
+  type: string;
+  coordinates: number[][][] | number[][][][];
+}
+
+interface GeoJSONFeature {
+  type: string;
+  properties: { name: string };
+  geometry: GeoJSONGeometry;
+}
+
+interface GeoJSONData {
+  type: string;
+  features: GeoJSONFeature[];
+}
+
+// Store loaded GeoJSON data globally so it persists across re-renders
+let cachedGeoJSON: GeoJSONData | null = null;
+
+// Detailed continent outlines as [lon, lat] coordinate arrays (fallback)
 const CONTINENT_DATA: Record<string, number[][]> = {
   // North America - detailed coastline
   northAmericaWest: [
@@ -219,11 +239,77 @@ function generateOrbitPath(inclination: number, altitude: number, startLon: numb
 // Earth rotation state - shared between Earth and orbit calculations
 let earthRotation = 0;
 
-// Earth component with real world map outlines
+// Convert GeoJSON coordinates to 3D line segments
+function geoJSONToLines(geometry: GeoJSONGeometry, radius: number): THREE.Vector3[][] {
+  const lines: THREE.Vector3[][] = [];
+  
+  if (geometry.type === 'Polygon') {
+    const coords = geometry.coordinates as number[][][];
+    coords.forEach(ring => {
+      const points = ring.map(([lon, lat]) => latLonToVector3(lat, lon, radius));
+      if (points.length > 1) lines.push(points);
+    });
+  } else if (geometry.type === 'MultiPolygon') {
+    const coords = geometry.coordinates as number[][][][];
+    coords.forEach(polygon => {
+      polygon.forEach(ring => {
+        const points = ring.map(([lon, lat]) => latLonToVector3(lat, lon, radius));
+        if (points.length > 1) lines.push(points);
+      });
+    });
+  }
+  
+  return lines;
+}
+
+// Earth component with real world map outlines from GeoJSON
 function Earth() {
   const earthRef = useRef<THREE.Group>(null);
+  const [geoData, setGeoData] = useState<GeoJSONData | null>(cachedGeoJSON);
+  const [isLoading, setIsLoading] = useState(!cachedGeoJSON);
   
-  const continentLines = useMemo(() => {
+  // Load GeoJSON country data
+  useEffect(() => {
+    if (cachedGeoJSON) {
+      setGeoData(cachedGeoJSON);
+      setIsLoading(false);
+      return;
+    }
+    
+    fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
+      .then(res => res.json())
+      .then((data: GeoJSONData) => {
+        cachedGeoJSON = data;
+        setGeoData(data);
+        setIsLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to load GeoJSON:', err);
+        setIsLoading(false);
+      });
+  }, []);
+  
+  // Generate country border lines from GeoJSON
+  const countryLines = useMemo(() => {
+    if (!geoData) return [];
+    
+    const allLines: { points: THREE.Vector3[]; key: string }[] = [];
+    
+    geoData.features.forEach((feature, featureIndex) => {
+      const lines = geoJSONToLines(feature.geometry, 2.01);
+      lines.forEach((points, lineIndex) => {
+        allLines.push({
+          key: `${feature.properties.name || featureIndex}-${lineIndex}`,
+          points,
+        });
+      });
+    });
+    
+    return allLines;
+  }, [geoData]);
+  
+  // Fallback continent lines (used while loading)
+  const fallbackLines = useMemo(() => {
     const lines: { points: THREE.Vector3[]; key: string }[] = [];
     Object.entries(CONTINENT_DATA).forEach(([name, coords]) => {
       lines.push({
@@ -234,6 +320,9 @@ function Earth() {
     return lines;
   }, []);
   
+  // Use GeoJSON data if available, otherwise use fallback
+  const linesToRender = countryLines.length > 0 ? countryLines : fallbackLines;
+  
   useFrame((_, delta) => {
     if (earthRef.current) {
       earthRotation += delta * 0.02;
@@ -243,67 +332,102 @@ function Earth() {
 
   return (
     <group ref={earthRef}>
-      {/* Ocean sphere - visible deep blue with clear edge */}
+      {/* Ocean sphere - dark surface like reference image */}
       <mesh>
         <sphereGeometry args={[2, 128, 128]} />
         <meshStandardMaterial 
-          color="#0a1a30"
-          roughness={0.7}
-          metalness={0.2}
+          color="#050a12"
+          roughness={0.9}
+          metalness={0.1}
         />
       </mesh>
       
-      {/* Land mass fill - subtle green tint areas */}
-      <mesh>
-        <sphereGeometry args={[1.99, 64, 64]} />
-        <meshStandardMaterial 
-          color="#051510"
-          roughness={1}
-          metalness={0}
-        />
-      </mesh>
+      {/* Grid lines - latitude */}
+      {[-60, -30, 0, 30, 60].map(lat => {
+        const points: THREE.Vector3[] = [];
+        for (let lon = -180; lon <= 180; lon += 5) {
+          points.push(latLonToVector3(lat, lon, 2.005));
+        }
+        return (
+          <Line
+            key={`lat-${lat}`}
+            points={points}
+            color="#1a3a4a"
+            lineWidth={0.5}
+            opacity={0.4}
+            transparent
+          />
+        );
+      })}
       
-      {/* Continent coastlines - bright cyan/green */}
-      {continentLines.map(({ points, key }) => (
+      {/* Grid lines - longitude */}
+      {[-150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150, 180].map(lon => {
+        const points: THREE.Vector3[] = [];
+        for (let lat = -90; lat <= 90; lat += 5) {
+          points.push(latLonToVector3(lat, lon, 2.005));
+        }
+        return (
+          <Line
+            key={`lon-${lon}`}
+            points={points}
+            color="#1a3a4a"
+            lineWidth={0.5}
+            opacity={0.4}
+            transparent
+          />
+        );
+      })}
+      
+      {/* Country borders - cyan/teal color like reference */}
+      {linesToRender.map(({ points, key }) => (
         <Line
           key={key}
           points={points}
-          color="#00FFCC"
-          lineWidth={2}
-          opacity={1}
-          transparent={false}
+          color="#40E0D0"
+          lineWidth={1.2}
+          opacity={0.9}
+          transparent
         />
       ))}
       
-      {/* Earth edge glow - visible bright rim */}
+      {/* Loading indicator */}
+      {isLoading && (
+        <Html center>
+          <div className="text-[#00FFCC] text-xs font-mono animate-pulse">
+            Loading map data...
+          </div>
+        </Html>
+      )}
+      
+      {/* Earth edge glow - subtle cyan rim */}
       <mesh>
-        <sphereGeometry args={[2.03, 64, 64]} />
+        <sphereGeometry args={[2.02, 64, 64]} />
         <meshBasicMaterial 
           color="#00FFFF"
           transparent
-          opacity={0.15}
+          opacity={0.1}
           side={THREE.BackSide}
         />
       </mesh>
       
       {/* Outer atmosphere - cyan glow */}
       <mesh>
-        <sphereGeometry args={[2.12, 64, 64]} />
+        <sphereGeometry args={[2.08, 64, 64]} />
         <meshBasicMaterial 
           color="#00AAFF"
           transparent
-          opacity={0.08}
+          opacity={0.06}
           side={THREE.BackSide}
         />
       </mesh>
       
       {/* Second outer glow for depth */}
       <mesh>
-        <sphereGeometry args={[2.2, 64, 64]} />
+        <sphereGeometry args={[2.15, 64, 64]} />
         <meshBasicMaterial 
-          color="#004488"
+          color="#003366"
           transparent
-          opacity={0.05}
+          opacity={0.04}
           side={THREE.BackSide}
         />
       </mesh>
@@ -314,50 +438,62 @@ function Earth() {
   );
 }
 
-// Observer location marker on Earth
+// Observer location marker on Earth with leader line like reference image
 function ObserverMarker() {
   const markerRef = useRef<THREE.Group>(null);
-  // Default observer location (can be updated with real geolocation)
-  const observerLat = 40.7128; // New York
-  const observerLon = -74.0060;
+  // Default observer location - centered on Atlantic view (UK/Europe area)
+  const observerLat = 51.5074; // London
+  const observerLon = -0.1278;
   
   const position = useMemo(() => {
-    return latLonToVector3(observerLat, observerLon, 2.03);
+    return latLonToVector3(observerLat, observerLon, 2.02);
+  }, []);
+  
+  // Leader line end position (above the marker)
+  const leaderLineEnd = useMemo(() => {
+    const basePos = latLonToVector3(observerLat, observerLon, 2.02);
+    // Extend outward from Earth center, then up
+    const direction = basePos.clone().normalize();
+    return basePos.clone().add(direction.multiplyScalar(0.4));
   }, []);
   
   useFrame((state) => {
     if (markerRef.current) {
-      // Pulse effect
-      const scale = 1 + Math.sin(state.clock.getElapsedTime() * 3) * 0.2;
+      // Subtle pulse effect
+      const scale = 1 + Math.sin(state.clock.getElapsedTime() * 2) * 0.15;
       markerRef.current.scale.setScalar(scale);
     }
   });
   
   return (
-    <group position={position}>
-      <group ref={markerRef}>
-        {/* Observer dot */}
-        <mesh>
-          <sphereGeometry args={[0.04, 16, 16]} />
-          <meshBasicMaterial color="#FF4444" />
-        </mesh>
-        {/* Glow ring */}
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.06, 0.08, 32]} />
-          <meshBasicMaterial color="#FF4444" transparent opacity={0.6} side={THREE.DoubleSide} />
-        </mesh>
-        {/* Outer pulse ring */}
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.1, 0.11, 32]} />
-          <meshBasicMaterial color="#FF4444" transparent opacity={0.3} side={THREE.DoubleSide} />
-        </mesh>
+    <group>
+      {/* Leader line from marker to label */}
+      <Line
+        points={[position, leaderLineEnd]}
+        color="#FF4444"
+        lineWidth={1}
+        opacity={0.8}
+        transparent
+      />
+      
+      <group position={position}>
+        <group ref={markerRef}>
+          {/* Observer dot - small red point */}
+          <mesh>
+            <sphereGeometry args={[0.025, 16, 16]} />
+            <meshBasicMaterial color="#FF4444" />
+          </mesh>
+        </group>
       </group>
-      {/* Label */}
-      <Html position={[0, 0.12, 0]} center>
-        <div className="bg-[rgba(0,0,0,0.8)] border border-[rgba(255,68,68,0.5)] px-2 py-0.5 rounded text-xs whitespace-nowrap">
-          <span className="text-[#FF4444] font-mono">YOU</span>
-        </div>
-      </Html>
+      
+      {/* Label at end of leader line */}
+      <group position={leaderLineEnd}>
+        <Html center>
+          <div className="bg-[rgba(20,10,10,0.95)] border border-[rgba(255,68,68,0.6)] px-3 py-1 rounded text-xs whitespace-nowrap shadow-lg">
+            <span className="text-[#FF4444] font-mono font-bold tracking-wider">YOU</span>
+          </div>
+        </Html>
+      </group>
     </group>
   );
 }
@@ -1045,14 +1181,14 @@ export function EarthScene({
   
   return (
     <Canvas
-      camera={{ position: [0, 2, 6], fov: 45 }}
+      camera={{ position: [4, 1.5, 4], fov: 45 }}
       gl={{ antialias: true, alpha: true }}
       style={{ background: 'transparent' }}
     >
-      <ambientLight intensity={0.3} />
-      <directionalLight position={[5, 3, 5]} intensity={1.2} />
-      <directionalLight position={[-5, -3, -5]} intensity={0.3} color="#00D4FF" />
-      <pointLight position={[0, 0, 10]} intensity={0.5} color="#FFB300" />
+      <ambientLight intensity={0.4} />
+      <directionalLight position={[5, 3, 5]} intensity={1} />
+      <directionalLight position={[-5, -3, -5]} intensity={0.2} color="#00D4FF" />
+      <pointLight position={[0, 0, 8]} intensity={0.3} color="#00FFCC" />
       
       {/* Invisible background sphere to catch clicks */}
       <BackgroundClick onBackgroundClick={handleBackgroundClick} />
