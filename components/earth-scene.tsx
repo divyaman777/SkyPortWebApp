@@ -120,8 +120,8 @@ function eciDirToThreeJS(eciX: number, eciY: number, eciZ: number, radius: numbe
   return new THREE.Vector3(eciX * scale, eciZ * scale, -eciY * scale);
 }
 
-// Simulation time: 150x real-time for visible orbital motion
-const TIME_SCALE = 150;
+// Simulation time: 80x real-time for visible but clickable orbital motion
+const TIME_SCALE = 80;
 // Moon moves much slower than LEO sats — extra multiplier so its revolution is visible
 const MOON_SPEED_MULT = 40;
 const simStartReal = Date.now();
