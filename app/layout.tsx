@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { JetBrains_Mono, VT323, Share_Tech_Mono } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
+import { GoogleAnalytics } from '@next/third-parties/google'
 import './globals.css'
 
 const jetbrainsMono = JetBrains_Mono({ 
@@ -57,7 +57,7 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className={`${jetbrainsMono.variable} ${vt323.variable} ${shareTechMono.variable} font-mono antialiased`}>
         {children}
-        {process.env.NODE_ENV === 'production' && <Analytics />}
+        <GoogleAnalytics gaId="G-PBGTL2VJEW" />
       </body>
     </html>
   )

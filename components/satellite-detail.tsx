@@ -5,6 +5,7 @@ import { X, Radio, Tv, Antenna, Wifi, ExternalLink, RefreshCw, Image as ImageIco
 import { Satellite, categoryColors } from '@/lib/satellite-data';
 import { REGISTRY_MAP, type SatelliteRegistryEntry, type DataFeed } from '@/lib/satellite-registry';
 import { cachedFetch } from '@/lib/api-cache';
+import { trackAudioPlay, trackAudioStop, trackDataFeedConnect, trackVideoStream } from '@/lib/analytics';
 
 interface SatelliteDetailProps {
   satellite: Satellite | null;
@@ -202,8 +203,10 @@ function AudioStream({ satellite }: { satellite: Satellite }) {
     if (isPlaying) {
       stopAudio();
       setIsPlaying(false);
+      trackAudioStop(satellite.name);
       return;
     }
+    trackAudioPlay(satellite.name, frequency);
 
     // Create Web Audio context for radio signal synthesis
     const ctx = new AudioContext();
@@ -470,8 +473,10 @@ function ISSDataFeed({ satellite }: { satellite: Satellite }) {
   const tryNextStream = () => {
     if (streamIdx < ISS_STREAM_IDS.length - 1) {
       setStreamIdx(prev => prev + 1);
+      trackVideoStream(satellite.name, 'next');
     } else {
       setShowFallback(true);
+      trackVideoStream(satellite.name, 'fallback');
     }
   };
 
@@ -887,6 +892,8 @@ function ConnectButton({ satellite }: { satellite: Satellite }) {
 
   const handleConnect = () => {
     setConnecting(true);
+    const feedType = registryEntry ? 'live' : 'simulated';
+    trackDataFeedConnect(satellite.name, feedType, satellite.registryId || satellite.category);
     setTimeout(() => {
       setConnecting(false);
       setConnected(true);

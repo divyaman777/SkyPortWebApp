@@ -14,6 +14,7 @@ import {
   SatelliteCategory,
   getCategoryCounts
 } from '@/lib/satellite-data';
+import { trackSatelliteClick, trackFilterToggle, trackFilterPanelToggle, trackSearch } from '@/lib/analytics';
 import {
   initializeTLEs,
   computeSatellitePosition,
@@ -200,14 +201,16 @@ export default function Skyport() {
 
   const handleFilterChange = (category: SatelliteCategory, enabled: boolean) => {
     setFilters(prev => ({ ...prev, [category]: enabled }));
+    trackFilterToggle(category, enabled);
   };
 
   const handleSatelliteClick = (satellite: Satellite) => {
-    // Toggle selection - if same satellite clicked, deselect
     if (selectedSatellite?.id === satellite.id) {
       setSelectedSatellite(null);
     } else {
       setSelectedSatellite(satellite);
+      const orbit = satellite.altitude > 35000 ? 'GEO' : satellite.altitude > 2000 ? 'MEO' : 'LEO';
+      trackSatelliteClick(satellite.name, satellite.category, orbit, satellite.registryId);
     }
   };
 
@@ -405,8 +408,16 @@ export default function Skyport() {
       {/* Navigation */}
       <NavigationBar 
         searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        onFilterToggle={() => setFilterPanelOpen(prev => !prev)}
+        onSearchChange={(q: string) => {
+          setSearchQuery(q);
+          if (q.length >= 3) trackSearch(q);
+        }}
+        onFilterToggle={() => {
+          setFilterPanelOpen(prev => {
+            trackFilterPanelToggle(!prev);
+            return !prev;
+          });
+        }}
       />
 
       {/* Main content area */}

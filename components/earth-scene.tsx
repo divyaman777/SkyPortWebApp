@@ -6,6 +6,7 @@ import { OrbitControls, Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { Satellite, categoryColors, SatelliteCategory } from '@/lib/satellite-data';
 import { computeECIPosition, computeOrbitPathECI, computeMoonPositionECI, computeMoonOrbitNormal, getJWSTPositionECI, getGMST } from '@/lib/satellite-engine';
+import { trackMoonClick, trackOrbitZoneClick } from '@/lib/analytics';
 
 // ─── GeoJSON Border Loading ─────────────────────────────────
 const WORLD_GEOJSON_URL = 'https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json';
@@ -1310,7 +1311,9 @@ function OrbitZones() {
   };
   
   const handleZoneClick = (zoneName: string) => {
-    setSelectedZone(selectedZone === zoneName ? null : zoneName);
+    const opening = selectedZone !== zoneName;
+    setSelectedZone(opening ? zoneName : null);
+    if (opening) trackOrbitZoneClick(zoneName);
   };
   
   return (
@@ -1502,7 +1505,10 @@ export function EarthScene({
   };
 
   const handleMoonClick = () => {
-    setMoonSelected(prev => !prev);
+    setMoonSelected(prev => {
+      if (!prev) trackMoonClick();
+      return !prev;
+    });
   };
 
   const handleBackgroundClick = () => {
