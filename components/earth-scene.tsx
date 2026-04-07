@@ -341,40 +341,47 @@ function ObserverMarker() {
     return () => { if (cleanup) cleanup(); };
   }, []);
 
+  // Position on Earth surface, with normal vector for orientation
   const position = useMemo(() => {
-    return latLonToVector3(observerLat, observerLon, 2.03);
+    return latLonToVector3(observerLat, observerLon, 2.015);
   }, [observerLat, observerLon]);
-  
+
+  // Normal direction (from Earth center through the point) for orienting the pin
+  const normal = useMemo(() => {
+    return position.clone().normalize();
+  }, [position]);
+
+  // Quaternion to point the pin outward from Earth surface
+  const quaternion = useMemo(() => {
+    const q = new THREE.Quaternion();
+    q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+    return q;
+  }, [normal]);
+
   useFrame((state) => {
     if (markerRef.current) {
-      // Pulse effect
-      const scale = 1 + Math.sin(state.clock.getElapsedTime() * 3) * 0.2;
-      markerRef.current.scale.setScalar(scale);
+      const pulse = 0.8 + Math.sin(state.clock.getElapsedTime() * 4) * 0.2;
+      markerRef.current.scale.setScalar(pulse);
     }
   });
-  
+
   return (
-    <group position={position}>
+    <group position={position} quaternion={quaternion}>
       <group ref={markerRef}>
-        {/* Observer dot */}
-        <mesh>
-          <sphereGeometry args={[0.04, 16, 16]} />
+        {/* Pin point — small diamond shape */}
+        <mesh position={[0, 0.012, 0]}>
+          <octahedronGeometry args={[0.01, 0]} />
           <meshBasicMaterial color="#FF4444" />
         </mesh>
-        {/* Glow ring */}
+        {/* Tiny base ring on surface */}
         <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.06, 0.08, 32]} />
-          <meshBasicMaterial color="#FF4444" transparent opacity={0.6} side={THREE.DoubleSide} />
-        </mesh>
-        {/* Outer pulse ring */}
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.1, 0.11, 32]} />
-          <meshBasicMaterial color="#FF4444" transparent opacity={0.3} side={THREE.DoubleSide} />
+          <ringGeometry args={[0.012, 0.016, 16]} />
+          <meshBasicMaterial color="#FF4444" transparent opacity={0.5} side={THREE.DoubleSide} />
         </mesh>
       </group>
       {/* Label */}
-      <Html position={[0, 0.12, 0]} center>
-        <div className="bg-[rgba(0,0,0,0.8)] border border-[rgba(255,68,68,0.5)] px-2 py-0.5 rounded text-xs whitespace-nowrap">
+      <Html position={[0, 0.05, 0]} center>
+        <div className="bg-[rgba(0,0,0,0.85)] border border-[rgba(255,68,68,0.4)] px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap">
           <span className="text-[#FF4444] font-mono">YOU</span>
         </div>
       </Html>
@@ -405,8 +412,8 @@ function UserPresenceDots() {
     <group>
       {dots.map(dot => (
         <mesh key={dot.key} position={dot.position}>
-          <sphereGeometry args={[0.012, 6, 6]} />
-          <meshBasicMaterial color="#00D4FF" transparent opacity={0.6} />
+          <sphereGeometry args={[0.006, 6, 6]} />
+          <meshBasicMaterial color="#E0E0E0" transparent opacity={0.75} />
         </mesh>
       ))}
     </group>
