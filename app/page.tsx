@@ -511,7 +511,7 @@ export default function Skyport() {
               ].map(({ amount, label }) => (
                 <a
                   key={amount}
-                  href={`https://buymeacoffee.com/skyport?amount=${amount}`}
+                  href="https://ko-fi.com/skyport"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex flex-col items-center gap-1 p-3 rounded border border-[rgba(0,255,65,0.2)] hover:border-[#FFB300] hover:bg-[rgba(255,180,0,0.1)] transition-all group"
@@ -523,13 +523,13 @@ export default function Skyport() {
             </div>
 
             <a
-              href="https://buymeacoffee.com/skyport"
+              href="https://ko-fi.com/skyport"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 w-full py-3 rounded bg-gradient-to-r from-[#FFB300] to-[#FF8C00] text-black font-bold text-sm hover:opacity-90 transition-opacity"
             >
               <Coffee className="w-4 h-4" />
-              Buy me a coffee
+              Support on Ko-fi
             </a>
 
             <p className="text-center text-[10px] text-muted-foreground mt-4 flex items-center justify-center gap-1">
