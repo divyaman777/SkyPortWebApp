@@ -1,15 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, SlidersHorizontal } from 'lucide-react';
+import { Search, SlidersHorizontal, Coffee } from 'lucide-react';
 
 interface NavigationBarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onFilterToggle: () => void;
+  onSupportClick: () => void;
 }
 
-export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle }: NavigationBarProps) {
+export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle, onSupportClick }: NavigationBarProps) {
   const [cursorVisible, setCursorVisible] = useState(true);
 
   useEffect(() => {
@@ -62,6 +63,15 @@ export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle }: N
           >
             <SlidersHorizontal className="w-4 h-4 text-[#00FF41]" />
             <span className="hidden sm:inline text-muted-foreground">[--filter]</span>
+          </button>
+
+          {/* Support — coffee icon */}
+          <button
+            onClick={onSupportClick}
+            className="p-1.5 rounded transition-all duration-200 hover:bg-[rgba(255,180,0,0.15)]"
+            title="Fuel the mission"
+          >
+            <Coffee className="w-4 h-4 text-[#FFB300]" />
           </button>
         </div>
       </div>

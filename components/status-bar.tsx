@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Eye } from 'lucide-react';
+import { Eye, Rocket } from 'lucide-react';
 
 interface StatusBarProps {
   overheadCount: number;
+  onSupportClick?: () => void;
 }
 
 function MiniWorldMap() {
@@ -84,7 +85,7 @@ function MiniWorldMap() {
   );
 }
 
-export function StatusBar({ overheadCount }: StatusBarProps) {
+export function StatusBar({ overheadCount, onSupportClick }: StatusBarProps) {
   const [cursorVisible, setCursorVisible] = useState(true);
 
   useEffect(() => {
@@ -128,6 +129,15 @@ export function StatusBar({ overheadCount }: StatusBarProps) {
           <button className="flex items-center gap-2 px-2 py-1 glass-panel rounded hover:bg-[rgba(0,255,65,0.1)] transition-colors">
             <Eye className="w-3 h-3 text-[#00D4FF]" />
             <span className="text-foreground">[VIEW_LIST]</span>
+          </button>
+          <button
+            onClick={onSupportClick}
+            className="group flex items-center gap-1.5 px-2 py-1 glass-panel rounded hover:border-[#FFB300] transition-all duration-200"
+          >
+            <Rocket className="w-3 h-3 text-[#FFB300]" />
+            <span className="text-muted-foreground group-hover:text-[#FFB300] transition-colors">[</span>
+            <span className="text-[#FFB300] group-hover:glow-amber transition-all">FUEL_MISSION</span>
+            <span className="text-muted-foreground group-hover:text-[#FFB300] transition-colors">]</span>
           </button>
         </div>
       </div>
