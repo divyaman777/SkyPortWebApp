@@ -441,8 +441,9 @@ function Earth() {
 // Observer location marker on Earth with leader line like reference image
 function ObserverMarker() {
   const markerRef = useRef<THREE.Group>(null);
-  const observerLat = 51.5074;
-  const observerLon = -0.1278;
+  // Observer location: New Delhi, India (shows Kashmir region as part of India)
+  const observerLat = 28.6139;
+  const observerLon = 77.2090;
 
   const position = useMemo(() => {
     return latLonToVector3(observerLat, observerLon, 2.02);
@@ -1172,7 +1173,7 @@ export function EarthScene({
   
   return (
     <Canvas
-      camera={{ position: [4, 1.5, 4], fov: 45 }}
+      camera={{ position: [-3, 2, 5], fov: 45 }}
       gl={{ antialias: true, alpha: true }}
       style={{ background: 'transparent' }}
     >
