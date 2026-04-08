@@ -127,106 +127,91 @@ function OrionSpacecraft({ position, scale = 1 }: OrionSpacecraftProps) {
 
 // Generate trajectory points for Artemis II circumlunar free-return trajectory
 // 
-// ORBITAL MECHANICS EXPLANATION:
-// A free-return trajectory is NOT a loop around the Moon.
-// It's a HYPERBOLIC FLYBY - the spacecraft approaches, Moon's gravity
-// bends the path smoothly, and it exits on a different trajectory.
+// Based on the NASA reference image, the trajectory:
+// 1. Departs Earth orbit, travels toward Moon (upper path)
+// 2. Curves AROUND the far side of Moon (smooth arc that stays OUTSIDE Moon)
+// 3. Returns to Earth (lower path, parallel but separate from outbound)
 //
-// The path looks like this (top-down view):
+// CRITICAL: The path must NEVER intersect the Moon!
+// The flyby arc goes around the far side (positive X from Moon center)
+// At closest approach, spacecraft is ~6,513 km from lunar surface
 //
-//     Earth                                    Moon
-//       O ----→----→----→----→----→----→---╮    ○
-//         ←----←----←----←----←----←----←--╯
+// Visual reference (top-down, Earth on left, Moon on right):
 //
-// The spacecraft travels outbound (top path), swings BEHIND the Moon
-// (the curved part on the right), and returns (bottom path).
-// 
-// Key: The curve happens BEHIND the Moon (away from Earth), NOT around it.
-// Closest approach: 6,513 km from lunar surface
+//   Earth                                    Moon
+//     O ═══════════════════════════════════╗   ○
+//                                          ║ ←(curves around far side)
+//       ═══════════════════════════════════╝
 //
-// References: NASA SVS, Wikipedia "Free-return trajectory"
 function generateTrajectoryPoints(): THREE.Vector3[] {
   const points: THREE.Vector3[] = [];
   const segments = 1000;
   
   const MOON_RADIUS = 0.45;
-  // Closest approach distance from Moon CENTER (not surface)
-  // 6,513 km from surface + ~1,737 km Moon radius = ~8,250 km from center
-  // In our scene scale, this is roughly Moon radius + clearance
-  const PERILUNE = MOON_RADIUS + 0.7; // Clear visual separation from Moon
+  // Minimum clearance from Moon center - must be > MOON_RADIUS
+  // This is the closest approach distance (perilune)
+  const PERILUNE = MOON_RADIUS + 0.8; // Ensures clear visual separation
+  
+  // Lateral offset for outbound/return paths (how far apart they are in Z)
+  const PATH_SPREAD = 0.7;
   
   for (let i = 0; i <= segments; i++) {
     const t = i / segments;
     
-    // The trajectory consists of:
-    // 1. Outbound coast (Earth to Moon vicinity) - t: 0 to 0.45
-    // 2. Lunar flyby (hyperbolic curve behind Moon) - t: 0.45 to 0.55
-    // 3. Return coast (Moon vicinity to Earth) - t: 0.55 to 1.0
-    
     let x: number, y: number, z: number;
     
-    if (t < 0.45) {
-      // OUTBOUND: Smooth arc from Earth toward Moon
-      // Approaches Moon from one side (positive Z)
-      const outT = t / 0.45; // Normalize to 0-1
+    if (t < 0.42) {
+      // OUTBOUND: Earth to Moon approach (upper path in 2D view)
+      const outT = t / 0.42;
       
-      // X: Travels from Earth orbit to near Moon
+      // X: Travels from Earth toward Moon's X position
       const startX = EARTH_RADIUS + 0.5;
-      const endX = MOON_DISTANCE - PERILUNE * 0.5;
-      // Use smooth easing for natural acceleration
-      const easeT = outT * outT * (3 - 2 * outT); // smoothstep
+      const endX = MOON_DISTANCE; // Reach Moon's X at end of outbound
+      const easeT = outT * outT * (3 - 2 * outT);
       x = startX + (endX - startX) * easeT;
       
-      // Z: Approaches from positive Z side
-      // Gradual curve that peaks partway through
-      z = Math.sin(outT * Math.PI * 0.7) * 1.2;
+      // Z: Positive offset (upper path), curves slightly
+      z = PATH_SPREAD * (1 - outT * 0.3); // Slight curve inward as approaching Moon
       
-      // Y: Slight rise during outbound
-      y = Math.sin(outT * Math.PI) * 0.15;
+      // Y: Gentle arc
+      y = Math.sin(outT * Math.PI) * 0.12;
       
-    } else if (t < 0.55) {
-      // LUNAR FLYBY: Hyperbolic curve BEHIND the Moon
-      // This is the critical part - smooth gravitational curve
-      const flybyT = (t - 0.45) / 0.1; // 0 to 1 during flyby
+    } else if (t < 0.58) {
+      // LUNAR FLYBY: Smooth arc around the FAR SIDE of Moon
+      // This section creates a semicircular arc that stays OUTSIDE the Moon
+      const flybyT = (t - 0.42) / 0.16;
       
-      // The flyby path curves around the FAR side of Moon
-      // Moon is at (MOON_DISTANCE, 0, 0)
-      // Spacecraft goes to (MOON_DISTANCE + PERILUNE, 0, z) at closest
+      // The arc goes around the far side (positive X direction from Moon)
+      // At flybyT=0: at Moon's X, positive Z (entry)
+      // At flybyT=0.5: at maximum X (farthest point behind Moon), Z=0
+      // At flybyT=1: at Moon's X, negative Z (exit)
       
-      // Smooth U-turn behind Moon using parametric curve
-      // Entry: coming from +Z, Exit: departing to -Z
+      // Arc angle: from +90° to -90° (half circle around far side)
+      const angle = (Math.PI / 2) - flybyT * Math.PI; // 90° to -90°
       
-      // X: Goes past Moon, curves around, comes back
-      // At t=0.5 (flyby midpoint), X should be at maximum (behind Moon)
-      const flybyX = MOON_DISTANCE + PERILUNE * Math.cos(flybyT * Math.PI);
-      x = flybyX;
+      // Position on the arc - centered on Moon, radius = PERILUNE
+      // X stays BEYOND Moon's X (Moon.x + positive offset)
+      x = MOON_DISTANCE + Math.cos(angle) * PERILUNE;
+      z = Math.sin(angle) * PERILUNE;
       
-      // Z: Transitions from positive to negative (the turn)
-      // Use cosine for smooth symmetric turn
-      const entryZ = 1.2;  // Z value when entering flyby
-      const exitZ = -1.2;  // Z value when exiting flyby
-      // Smooth transition using cosine
-      z = entryZ * Math.cos(flybyT * Math.PI);
-      
-      // Y: Small vertical displacement during flyby  
-      y = Math.sin(flybyT * Math.PI) * 0.1;
+      // Y: Small vertical motion during flyby
+      y = Math.sin(flybyT * Math.PI) * 0.08;
       
     } else {
-      // RETURN: Smooth arc from Moon back to Earth
-      // Returns on opposite side (negative Z)
-      const retT = (t - 0.55) / 0.45; // Normalize to 0-1
+      // RETURN: Moon to Earth (lower path in 2D view)
+      const retT = (t - 0.58) / 0.42;
       
-      // X: Travels from near Moon back to Earth orbit
-      const startX = MOON_DISTANCE - PERILUNE * 0.5;
+      // X: Travels from Moon back to Earth
+      const startX = MOON_DISTANCE;
       const endX = EARTH_RADIUS + 0.4;
       const easeT = retT * retT * (3 - 2 * retT);
       x = startX - (startX - endX) * easeT;
       
-      // Z: Returns on negative Z side
-      z = -Math.sin((1 - retT) * Math.PI * 0.7) * 1.2;
+      // Z: Negative offset (lower path), curves slightly
+      z = -PATH_SPREAD * (1 - retT * 0.3);
       
-      // Y: Slight descent during return
-      y = -Math.sin((1 - retT) * Math.PI) * 0.12;
+      // Y: Gentle arc (below on return)
+      y = -Math.sin((1 - retT) * Math.PI) * 0.1;
     }
     
     points.push(new THREE.Vector3(x, y, z));
