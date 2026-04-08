@@ -126,70 +126,140 @@ function OrionSpacecraft({ position, scale = 1 }: OrionSpacecraftProps) {
 }
 
 // Generate trajectory points for the free-return path
+// Based on NASA's Artemis II hybrid free-return trajectory
 function generateTrajectoryPoints(): THREE.Vector3[] {
   const points: THREE.Vector3[] = [];
-  const segments = 300;
+  const segments = 400; // More segments for smoother path
   
   for (let i = 0; i <= segments; i++) {
     const t = i / segments;
     
-    if (t < 0.42) {
-      // Outbound: Earth to Moon
-      const outT = t / 0.42;
-      const radius = EARTH_RADIUS + 0.3 + outT * (MOON_DISTANCE - EARTH_RADIUS - 1);
-      const angle = outT * Math.PI * 0.65;
-      const y = Math.sin(outT * Math.PI) * 1.0;
+    if (t < 0.03) {
+      // Launch phase - rising from Earth surface
+      const launchT = t / 0.03;
+      const radius = EARTH_RADIUS + launchT * 0.5; // Start at Earth surface, rise to LEO
+      const angle = launchT * 0.1; // Slight orbital motion
+      const y = launchT * 0.3; // Rise upward
       points.push(new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius));
-    } else if (t < 0.55) {
-      // Lunar flyby - curve around Moon
-      const flybyT = (t - 0.42) / 0.13;
+    } else if (t < 0.42) {
+      // Outbound transit: Earth to Moon
+      const outT = (t - 0.03) / 0.39;
+      const radius = EARTH_RADIUS + 0.5 + outT * (MOON_DISTANCE - EARTH_RADIUS - 1.2);
+      const angle = 0.1 + outT * Math.PI * 0.55;
+      // Gentle arc toward Moon
+      const y = Math.sin(outT * Math.PI) * 0.8;
+      points.push(new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius));
+    } else if (t < 0.58) {
+      // Lunar flyby - curve around Moon (closest approach ~6,500 km)
+      const flybyT = (t - 0.42) / 0.16;
       const moonPos = new THREE.Vector3(MOON_DISTANCE, 0, 0);
-      const flybyRadius = 0.6;
-      const flybyAngle = Math.PI * 0.8 + flybyT * Math.PI * 1.2;
+      const flybyRadius = 0.55; // Close flyby
+      const flybyAngle = Math.PI * 0.7 + flybyT * Math.PI * 1.3;
+      const y = Math.sin(flybyT * Math.PI * 2) * 0.25;
       points.push(new THREE.Vector3(
         moonPos.x + Math.cos(flybyAngle) * flybyRadius,
-        Math.sin(flybyT * Math.PI * 2) * 0.3,
+        y,
         moonPos.z + Math.sin(flybyAngle) * flybyRadius
       ));
     } else {
-      // Return: Moon to Earth
-      const returnT = (t - 0.55) / 0.45;
-      const radius = MOON_DISTANCE - 0.5 - returnT * (MOON_DISTANCE - EARTH_RADIUS - 0.8);
-      const angle = Math.PI * 0.65 - returnT * Math.PI * 0.65;
-      const y = Math.sin((1 - returnT) * Math.PI) * 0.8;
-      points.push(new THREE.Vector3(Math.cos(angle) * radius, -y, Math.sin(angle) * radius));
+      // Return transit: Moon to Earth
+      const returnT = (t - 0.58) / 0.42;
+      const radius = MOON_DISTANCE - 0.3 - returnT * (MOON_DISTANCE - EARTH_RADIUS - 0.6);
+      const angle = Math.PI * 0.55 - returnT * Math.PI * 0.55;
+      // Descending arc back to Earth
+      const y = Math.sin((1 - returnT) * Math.PI) * 0.6 * -1;
+      points.push(new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius));
     }
   }
   
   return points;
 }
 
-// Ghost Moon - shows Moon's position during flyby
+// Ghost Moon - shows Moon's position during flyby (uses same texture as real Moon but blurred/transparent)
 function GhostMoon() {
   const moonFlybyPosition = new THREE.Vector3(MOON_DISTANCE, 0, 0);
   
+  // Create the same procedural moon texture as the real Moon
+  const moonTexture = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512; // Lower res for ghost effect
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    // Base lunar grey
+    ctx.fillStyle = '#a8a8a8';
+    ctx.fillRect(0, 0, 512, 256);
+
+    // Add maria (dark basaltic plains)
+    const maria = [
+      { x: 120, y: 100, rx: 45, ry: 35, color: '#686868' },
+      { x: 180, y: 120, rx: 35, ry: 28, color: '#707070' },
+      { x: 220, y: 130, rx: 40, ry: 30, color: '#656565' },
+      { x: 280, y: 110, rx: 30, ry: 23, color: '#6a6a6a' },
+      { x: 350, y: 130, rx: 35, ry: 28, color: '#626262' },
+    ];
+
+    maria.forEach(m => {
+      const gradient = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, Math.max(m.rx, m.ry));
+      gradient.addColorStop(0, m.color);
+      gradient.addColorStop(0.6, m.color);
+      gradient.addColorStop(1, '#909090');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.ellipse(m.x, m.y, m.rx, m.ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Add some craters
+    for (let i = 0; i < 15; i++) {
+      const x = Math.random() * 512;
+      const y = Math.random() * 256;
+      const r = 5 + Math.random() * 15;
+      ctx.strokeStyle = '#c0c0c0';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    return texture;
+  }, []);
+  
   return (
     <group position={moonFlybyPosition}>
-      {/* Ghost moon sphere - transparent/dashed appearance */}
+      {/* Ghost moon sphere - same texture as real Moon but faded */}
       <mesh>
         <sphereGeometry args={[0.45, 32, 32]} />
-        <meshStandardMaterial 
-          color="#8899AA" 
-          transparent 
-          opacity={0.25} 
-          wireframe={false}
-        />
+        {moonTexture ? (
+          <meshStandardMaterial 
+            map={moonTexture}
+            transparent 
+            opacity={0.3}
+            roughness={0.9}
+            metalness={0.05}
+          />
+        ) : (
+          <meshStandardMaterial 
+            color="#888888" 
+            transparent 
+            opacity={0.3}
+          />
+        )}
       </mesh>
-      {/* Wireframe overlay for "planned position" effect */}
-      <mesh>
-        <sphereGeometry args={[0.46, 16, 16]} />
-        <meshBasicMaterial color="#00D4FF" transparent opacity={0.15} wireframe />
+      {/* Subtle glow ring around ghost moon */}
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.48, 0.52, 64]} />
+        <meshBasicMaterial color="#00D4FF" transparent opacity={0.2} side={THREE.DoubleSide} />
       </mesh>
       {/* Label */}
-      <Html position={[0, 0.7, 0]} center>
-        <div className="text-[9px] text-[#00D4FF] whitespace-nowrap bg-[rgba(0,0,0,0.8)] px-2 py-1 rounded pointer-events-none border border-[rgba(0,212,255,0.3)]">
-          <div className="text-[8px] text-muted-foreground">FLYBY POSITION</div>
-          <div>MOON</div>
+      <Html position={[0, 0.75, 0]} center>
+        <div className="text-[10px] text-[#00D4FF]/80 whitespace-nowrap bg-[rgba(0,10,20,0.9)] px-2 py-1.5 rounded pointer-events-none border border-[rgba(0,212,255,0.2)]">
+          <div className="text-[8px] text-muted-foreground/70 mb-0.5">Moon position at flyby</div>
+          <div className="text-[#00D4FF]/60">CLOSEST APPROACH</div>
         </div>
       </Html>
     </group>
@@ -218,44 +288,44 @@ function ArtemisTrajectory({ progress, showFullPath = true, isSimulating = false
 
   return (
     <group>
-      {/* Completed path - solid green line */}
+      {/* Completed path - solid subtle cyan line (traveled portion) */}
       {completedPoints.length > 1 && (
         <Line
           points={completedPoints}
-          color="#00FF41"
-          lineWidth={3}
-          opacity={0.9}
+          color="#00D4FF"
+          lineWidth={2}
+          opacity={0.7}
           transparent
         />
       )}
       
-      {/* Remaining path - dashed cyan line */}
+      {/* Remaining path - dashed subtle line (planned portion) */}
       {showFullPath && remainingPoints.length > 1 && (
         <Line
           points={remainingPoints}
           color="#00D4FF"
-          lineWidth={2}
-          opacity={0.5}
+          lineWidth={1.5}
+          opacity={0.25}
           transparent
           dashed
-          dashSize={0.15}
-          dashScale={40}
-          gapSize={0.08}
+          dashSize={0.12}
+          dashScale={50}
+          gapSize={0.1}
         />
       )}
 
-      {/* Key waypoints - only show when not simulating or at start */}
+      {/* Key waypoints - only show when not simulating */}
       {!isSimulating && (
         <>
-          {/* Launch point */}
+          {/* Launch point - Earth */}
           <group position={trajectoryPoints[0]}>
             <mesh>
-              <sphereGeometry args={[0.08, 12, 12]} />
-              <meshBasicMaterial color="#00FF41" transparent opacity={0.9} />
+              <sphereGeometry args={[0.06, 12, 12]} />
+              <meshBasicMaterial color="#00FF41" transparent opacity={0.8} />
             </mesh>
-            <Html position={[0, 0.2, 0]} center>
-              <div className="text-[8px] text-[#00FF41] whitespace-nowrap bg-[rgba(0,0,0,0.8)] px-1.5 py-0.5 rounded pointer-events-none">
-                EARTH
+            <Html position={[0, 0.18, 0]} center>
+              <div className="text-[8px] text-[#00FF41]/90 whitespace-nowrap bg-[rgba(0,10,15,0.85)] px-1.5 py-0.5 rounded pointer-events-none border border-[rgba(0,255,65,0.2)]">
+                LAUNCH
               </div>
             </Html>
           </group>
@@ -263,12 +333,12 @@ function ArtemisTrajectory({ progress, showFullPath = true, isSimulating = false
           {/* Lunar flyby point */}
           <group position={trajectoryPoints[Math.floor(trajectoryPoints.length * 0.48)]}>
             <mesh>
-              <sphereGeometry args={[0.08, 12, 12]} />
-              <meshBasicMaterial color="#00D4FF" transparent opacity={0.9} />
+              <sphereGeometry args={[0.06, 12, 12]} />
+              <meshBasicMaterial color="#00D4FF" transparent opacity={0.8} />
             </mesh>
-            <Html position={[0, 0.2, 0]} center>
-              <div className="text-[8px] text-[#00D4FF] whitespace-nowrap bg-[rgba(0,0,0,0.8)] px-1.5 py-0.5 rounded pointer-events-none">
-                LUNAR FLYBY
+            <Html position={[0, 0.18, 0]} center>
+              <div className="text-[8px] text-[#00D4FF]/90 whitespace-nowrap bg-[rgba(0,10,15,0.85)] px-1.5 py-0.5 rounded pointer-events-none border border-[rgba(0,212,255,0.2)]">
+                FLYBY
               </div>
             </Html>
           </group>
@@ -276,11 +346,11 @@ function ArtemisTrajectory({ progress, showFullPath = true, isSimulating = false
           {/* Return/Splashdown point */}
           <group position={trajectoryPoints[trajectoryPoints.length - 1]}>
             <mesh>
-              <sphereGeometry args={[0.08, 12, 12]} />
-              <meshBasicMaterial color="#FF6B35" transparent opacity={0.9} />
+              <sphereGeometry args={[0.06, 12, 12]} />
+              <meshBasicMaterial color="#FFB300" transparent opacity={0.8} />
             </mesh>
-            <Html position={[0, 0.2, 0]} center>
-              <div className="text-[8px] text-[#FF6B35] whitespace-nowrap bg-[rgba(0,0,0,0.8)] px-1.5 py-0.5 rounded pointer-events-none">
+            <Html position={[0, 0.18, 0]} center>
+              <div className="text-[8px] text-[#FFB300]/90 whitespace-nowrap bg-[rgba(0,10,15,0.85)] px-1.5 py-0.5 rounded pointer-events-none border border-[rgba(255,179,0,0.2)]">
                 SPLASHDOWN
               </div>
             </Html>
