@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { Html, Line } from '@react-three/drei';
 import { ARTEMIS_II_MISSION, getCurrentPhase, getVelocity } from '@/lib/artemis-data';
 
 // Visual scale constants (matching earth-scene.tsx)
