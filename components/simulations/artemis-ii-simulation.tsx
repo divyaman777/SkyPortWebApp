@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { Html, Line } from '@react-three/drei';
+import { Html } from '@react-three/drei';
 import { ARTEMIS_II_MISSION, getCurrentPhase, getVelocity } from '@/lib/artemis-data';
 
 // Visual scale constants (matching earth-scene.tsx)
@@ -14,10 +14,6 @@ const MISSION_DURATION_HOURS = 240; // 10 days
 interface OrionSpacecraftProps {
   position: THREE.Vector3;
   scale?: number;
-  showLabel?: boolean;
-  missionPhase?: string;
-  velocity?: number;
-  missionTime?: number;
 }
 
 // Accurate Orion MPCV 3D Model based on NASA specifications
@@ -27,10 +23,6 @@ interface OrionSpacecraftProps {
 function OrionSpacecraft({ 
   position, 
   scale = 1, 
-  showLabel = true,
-  missionPhase,
-  velocity,
-  missionTime = 0,
 }: OrionSpacecraftProps) {
   const groupRef = useRef<THREE.Group>(null);
   const solarArrayRef = useRef<THREE.Group>(null);
@@ -65,9 +57,11 @@ function OrionSpacecraft({
       <mesh position={[0, 0.08, 0]}>
         <cylinderGeometry args={[0.025, CM_RADIUS, CM_HEIGHT, 32]} />
         <meshStandardMaterial 
-          color="#E8E8E8" 
+          color="#F0F0F0" 
           metalness={0.4} 
-          roughness={0.6}
+          roughness={0.5}
+          emissive="#404040"
+          emissiveIntensity={0.3}
         />
       </mesh>
       
@@ -208,9 +202,11 @@ function OrionSpacecraft({
       <mesh position={[0, -0.02, 0]}>
         <cylinderGeometry args={[ESM_RADIUS, ESM_RADIUS, ESM_HEIGHT, 32]} />
         <meshStandardMaterial 
-          color="#C9A227" 
+          color="#D4AF37" 
           metalness={0.6} 
-          roughness={0.4}
+          roughness={0.3}
+          emissive="#6B5B00"
+          emissiveIntensity={0.4}
         />
       </mesh>
       
@@ -352,13 +348,15 @@ function OrionSpacecraft({
                       />
                     </mesh>
                     
-                    {/* Solar cells (dark blue/purple gallium arsenide) */}
+                    {/* Solar cells (dark blue/purple gallium arsenide) - glowing */}
                     <mesh position={[0, 0.002, 0]}>
                       <boxGeometry args={[0.048, 0.001, 0.048]} />
                       <meshStandardMaterial 
-                        color="#0d1b4a" 
+                        color="#1a3a8a" 
                         metalness={0.4} 
                         roughness={0.3}
+                        emissive="#0044AA"
+                        emissiveIntensity={0.5}
                       />
                     </mesh>
                     
@@ -408,49 +406,12 @@ function OrionSpacecraft({
       </group>
 
       {/* ============================================= */}
-      {/* === SPACECRAFT LIGHTING === */}
+      {/* === SPACECRAFT LIGHTING (enhanced for visibility) === */}
       {/* ============================================= */}
-      <pointLight position={[0, 0.05, 0]} intensity={0.2} distance={1.2} color="#00D4FF" />
-      {/* Subtle gold reflection from ESM */}
-      <pointLight position={[0, -0.02, 0]} intensity={0.1} distance={0.8} color="#FFD700" />
-
-      {/* === LABEL === */}
-      {showLabel && (
-        <>
-          {/* Leader line */}
-          <Line
-            points={[
-              new THREE.Vector3(0, 0.3, 0),
-              new THREE.Vector3(0, 0.55, 0)
-            ]}
-            color="#00D4FF"
-            lineWidth={1}
-            opacity={0.8}
-            transparent
-          />
-          <Html position={[0, 0.7, 0]} center>
-            <div className="bg-[rgba(0,15,25,0.95)] border border-[rgba(0,212,255,0.5)] px-3 py-2 rounded text-xs whitespace-nowrap pointer-events-none">
-              <div className="text-[#00D4FF] font-mono font-bold text-sm">ORION MPCV</div>
-              <div className="text-[10px] text-muted-foreground">ARTEMIS II</div>
-              {missionPhase && (
-                <div className="text-[10px] text-[#00FF41] mt-1 border-t border-[rgba(0,255,65,0.2)] pt-1">
-                  {missionPhase}
-                </div>
-              )}
-              {velocity !== undefined && (
-                <div className="text-[10px] text-muted-foreground">
-                  {velocity.toFixed(2)} km/s
-                </div>
-              )}
-              {missionTime !== undefined && (
-                <div className="text-[10px] text-[#FFB400] mt-1">
-                  T+{Math.floor(missionTime / 24)}d {Math.floor(missionTime % 24)}h
-                </div>
-              )}
-            </div>
-          </Html>
-        </>
-      )}
+      <pointLight position={[0, 0.1, 0]} intensity={1.5} distance={3} color="#FFFFFF" />
+      <pointLight position={[0, -0.05, 0]} intensity={0.8} distance={2} color="#FFD700" />
+      <pointLight position={[0.3, 0, 0]} intensity={0.5} distance={2} color="#00D4FF" />
+      <pointLight position={[-0.3, 0, 0]} intensity={0.5} distance={2} color="#00D4FF" />
     </group>
   );
 }
@@ -647,14 +608,10 @@ export function ArtemisIISimulation({
       {/* Trajectory path */}
       <ArtemisTrajectory progress={progress} showFullPath={true} />
 
-      {/* Orion spacecraft */}
+      {/* Orion spacecraft - larger scale for visibility */}
       <OrionSpacecraft
         position={spacecraftPosition}
-        scale={0.35}
-        showLabel={true}
-        missionPhase={currentPhase.phase}
-        velocity={velocity}
-        missionTime={missionTime}
+        scale={0.6}
       />
 
       {/* Mission info panel */}
