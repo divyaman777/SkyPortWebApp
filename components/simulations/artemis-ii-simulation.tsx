@@ -126,81 +126,89 @@ function OrionSpacecraft({ position, scale = 1 }: OrionSpacecraftProps) {
 }
 
 // Generate trajectory points for Artemis II free-return trajectory
-// Based on NASA's official hybrid free-return trajectory
-// Key insight: Orion approaches Moon, swings WIDE around the FAR SIDE, then returns
-// The trajectory goes BEHIND the Moon (away from Earth), not in front
-// Closest approach: 6,513 km from lunar surface
+// Based on NASA SVS visualization and official mission data:
+// - Spacecraft launches, goes to Moon's FAR SIDE (away from Earth)
+// - Closest approach: 6,513 km (4,047 miles) above lunar surface
+// - Loops around the far side and returns to Earth
+// - Total mission: ~10 days
+// 
+// Key geometry: Moon is at (MOON_DISTANCE, 0, 0)
+// The spacecraft must go PAST the Moon (X > MOON_DISTANCE) to loop around far side
 function generateTrajectoryPoints(): THREE.Vector3[] {
   const points: THREE.Vector3[] = [];
-  const segments = 600; // Many segments for ultra-smooth curves
+  const segments = 600;
   
   const MOON_RADIUS = 0.45;
-  // Flyby clearance - spacecraft passes well behind Moon
-  const FLYBY_RADIUS = MOON_RADIUS + 0.8; // Large clearance for clear visual separation
+  // Flyby occurs on the FAR SIDE - spacecraft goes BEYOND the Moon
+  // 6,513 km altitude = roughly Moon radius + significant clearance in our scale
+  const FLYBY_ALTITUDE = 1.2; // Distance from Moon center during closest approach
   
   for (let i = 0; i <= segments; i++) {
     const t = i / segments;
     
-    // Use smooth easing functions for natural curves
-    const smoothStep = (x: number) => x * x * (3 - 2 * x);
-    const easeInOut = (x: number) => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+    // Smooth interpolation
+    const ease = (x: number) => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
     
-    if (t < 0.42) {
-      // OUTBOUND: Earth vicinity to Moon approach
-      // Start from a point in high Earth orbit (no surface launch - Earth rotates)
-      const outT = smoothStep(t / 0.42);
+    if (t < 0.45) {
+      // OUTBOUND TRANSIT: Earth orbit to Moon approach
+      const outT = ease(t / 0.45);
       
-      // Smooth bezier-like curve from Earth to Moon approach
-      const startRadius = EARTH_RADIUS + 0.8; // High orbit starting point
-      const endRadius = MOON_DISTANCE - FLYBY_RADIUS - 0.3;
-      const radius = startRadius + outT * (endRadius - startRadius);
+      // Start from high Earth orbit, travel toward Moon
+      const startX = EARTH_RADIUS + 0.6;
+      const endX = MOON_DISTANCE - 0.5; // Stop just before Moon
+      const x = startX + outT * (endX - startX);
       
-      // Gentle curve - approach Moon from slightly below
-      const angle = outT * 0.12; // Very gentle angle change
-      const y = Math.sin(outT * Math.PI * 0.6) * 0.3; // Slight arc above
+      // Slight curve in Z - approaching from one side
+      const z = Math.sin(outT * Math.PI * 0.4) * 0.8;
       
-      points.push(new THREE.Vector3(radius * Math.cos(angle), y, radius * Math.sin(angle)));
+      // Gentle Y arc
+      const y = Math.sin(outT * Math.PI) * 0.25;
       
-    } else if (t < 0.60) {
-      // LUNAR FLYBY: The critical part - wide arc BEHIND the Moon
-      // Orion swings around the far side (positive X, away from Earth)
-      const flybyT = (t - 0.42) / 0.18;
-      const smoothFlybyT = easeInOut(flybyT);
+      points.push(new THREE.Vector3(x, y, z));
       
-      // Center of flyby arc is BEHIND the Moon (Moon is at X = MOON_DISTANCE)
-      const moonCenterX = MOON_DISTANCE;
+    } else if (t < 0.55) {
+      // LUNAR FLYBY: Arc around the FAR SIDE of Moon
+      // This is the critical part - spacecraft goes BEYOND Moon (X > MOON_DISTANCE)
+      const flybyT = (t - 0.45) / 0.10;
+      const smoothT = ease(flybyT);
       
-      // Arc sweeps from approach side, around the back, to departure side
-      // Angle 0 = directly behind Moon (farthest from Earth)
-      // We go from ~-100° to ~+100° around the back
-      const startAngle = -Math.PI * 0.55; // Approaching from Earth-side
-      const endAngle = Math.PI * 0.55;    // Departing back toward Earth
-      const currentAngle = startAngle + smoothFlybyT * (endAngle - startAngle);
+      // Arc center is at Moon position
+      const moonX = MOON_DISTANCE;
+      const moonZ = 0;
       
-      // The flyby point is BEHIND the Moon (in +X direction from Moon center)
-      const flybyX = moonCenterX + Math.cos(currentAngle) * FLYBY_RADIUS;
-      const flybyZ = Math.sin(currentAngle) * FLYBY_RADIUS;
+      // Spacecraft arcs around the far side (positive X direction from Moon)
+      // Start: approaching from Earth side (angle ~135°)
+      // Middle: directly behind Moon, farthest from Earth (angle 0°)  
+      // End: departing back toward Earth (angle ~-135°)
+      const startAngle = Math.PI * 0.7;  // Coming from Earth direction
+      const endAngle = -Math.PI * 0.7;   // Heading back to Earth
+      const angle = startAngle + smoothT * (endAngle - startAngle);
       
-      // Gentle vertical motion during flyby
-      const y = Math.sin(smoothFlybyT * Math.PI) * 0.2;
+      // Position relative to Moon - ALWAYS on the far side (cos(angle) > 0 when near 0)
+      const flybyX = moonX + Math.cos(angle) * FLYBY_ALTITUDE;
+      const flybyZ = moonZ + Math.sin(angle) * FLYBY_ALTITUDE;
+      
+      // Vertical motion during flyby
+      const y = 0.25 - Math.abs(smoothT - 0.5) * 0.5;
       
       points.push(new THREE.Vector3(flybyX, y, flybyZ));
       
     } else {
-      // RETURN: Moon departure back to Earth
-      const returnT = smoothStep((t - 0.60) / 0.40);
+      // RETURN TRANSIT: Moon departure back to Earth
+      const returnT = ease((t - 0.55) / 0.45);
       
-      // Smooth curve from behind Moon back to Earth
-      const startRadius = MOON_DISTANCE + FLYBY_RADIUS * 0.7;
-      const endRadius = EARTH_RADIUS + 0.6; // End in high orbit
-      const radius = startRadius - returnT * (startRadius - endRadius);
+      // Start from behind Moon, curve back to Earth
+      const startX = MOON_DISTANCE + FLYBY_ALTITUDE * 0.5;
+      const endX = EARTH_RADIUS + 0.5;
+      const x = startX - returnT * (startX - endX);
       
-      // Mirror the outbound angle
-      const angle = (1 - returnT) * 0.12;
-      // Arc below the plane on return (free-return trajectory characteristic)
-      const y = -Math.sin(returnT * Math.PI * 0.5) * 0.25;
+      // Return on opposite side (negative Z)
+      const z = -Math.sin((1 - returnT) * Math.PI * 0.4) * 0.8;
       
-      points.push(new THREE.Vector3(radius * Math.cos(angle), y, -radius * Math.sin(angle)));
+      // Arc below on return
+      const y = -Math.sin((1 - returnT) * Math.PI) * 0.2;
+      
+      points.push(new THREE.Vector3(x, y, z));
     }
   }
   
@@ -287,11 +295,11 @@ function GhostMoon() {
         <ringGeometry args={[0.48, 0.51, 64]} />
         <meshBasicMaterial color="#E040FB" transparent opacity={0.12} side={THREE.DoubleSide} />
       </mesh>
-      {/* Label */}
-      <Html position={[0, 0.7, 0]} center>
+      {/* Label - positioned to side to avoid trajectory line */}
+      <Html position={[0.6, 0.5, 0]} center>
         <div className="text-[9px] text-[#CE93D8]/90 whitespace-nowrap bg-[rgba(10,0,15,0.9)] px-2 py-1 rounded pointer-events-none border border-[rgba(224,64,251,0.15)]">
-          <div className="text-[7px] text-muted-foreground/60 mb-0.5">Flyby position</div>
-          <div className="text-[#E040FB]/70">6,513 km altitude</div>
+          <div className="text-[7px] text-muted-foreground/60 mb-0.5">Orion passes behind Moon</div>
+          <div className="text-[#E040FB]/70">6,513 km from surface</div>
         </div>
       </Html>
     </group>
@@ -367,15 +375,15 @@ function ArtemisTrajectory({ progress, showFullPath = true, isSimulating = false
             </Html>
           </group>
           
-          {/* Lunar flyby point - behind Moon */}
-          <group position={trajectoryPoints[Math.floor(trajectoryPoints.length * 0.51)]}>
+          {/* Lunar flyby point - at farthest point behind Moon (50% of trajectory) */}
+          <group position={trajectoryPoints[Math.floor(trajectoryPoints.length * 0.50)]}>
             <mesh>
               <sphereGeometry args={[0.04, 12, 12]} />
               <meshBasicMaterial color={ARTEMIS_COLOR} transparent opacity={0.9} />
             </mesh>
             <Html position={[0, 0.12, 0]} center>
               <div className="text-[7px] text-[#E040FB] whitespace-nowrap bg-[rgba(10,0,15,0.9)] px-1 py-0.5 rounded pointer-events-none border border-[rgba(224,64,251,0.25)]">
-                FLYBY
+                FAR SIDE FLYBY
               </div>
             </Html>
           </group>
