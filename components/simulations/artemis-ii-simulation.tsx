@@ -126,90 +126,86 @@ function OrionSpacecraft({ position, scale = 1 }: OrionSpacecraftProps) {
 }
 
 // Generate trajectory points for Artemis II free-return trajectory
-// Based on NASA SVS visualization and official mission data:
-// - Spacecraft launches, goes to Moon's FAR SIDE (away from Earth)
-// - Closest approach: 6,513 km (4,047 miles) above lunar surface
-// - Loops around the far side and returns to Earth
-// - Total mission: ~10 days
+// Based on NASA SVS visualization: smooth figure-8 curve around Earth and Moon
+// Reference: https://svs.gsfc.nasa.gov/5610
 // 
-// Key geometry: Moon is at (MOON_DISTANCE, 0, 0)
-// The spacecraft must go PAST the Moon (X > MOON_DISTANCE) to loop around far side
+// The trajectory is a SMOOTH CONTINUOUS CURVE with NO sharp angles
+// It forms a figure-8 pattern when viewed from above
+// Closest lunar approach: ~6,513 km from surface
 function generateTrajectoryPoints(): THREE.Vector3[] {
   const points: THREE.Vector3[] = [];
-  const segments = 600;
+  const segments = 800; // High segment count for smooth curve
   
+  // Key distances in our scene scale
   const MOON_RADIUS = 0.45;
-  // Flyby occurs on the FAR SIDE - spacecraft goes BEYOND the Moon
-  // 6,513 km altitude = roughly Moon radius + significant clearance in our scale
-  const FLYBY_ALTITUDE = 1.2; // Distance from Moon center during closest approach
+  const FLYBY_CLEARANCE = MOON_RADIUS + 0.9; // Safe visual clearance from Moon
   
   for (let i = 0; i <= segments; i++) {
     const t = i / segments;
     
-    // Smooth interpolation
-    const ease = (x: number) => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+    // Use a single continuous parametric curve for the entire trajectory
+    // This ensures NO sharp corners at phase transitions
     
-    if (t < 0.45) {
-      // OUTBOUND TRANSIT: Earth orbit to Moon approach
-      const outT = ease(t / 0.45);
-      
-      // Start from high Earth orbit, travel toward Moon
-      const startX = EARTH_RADIUS + 0.6;
-      const endX = MOON_DISTANCE - 0.5; // Stop just before Moon
-      const x = startX + outT * (endX - startX);
-      
-      // Slight curve in Z - approaching from one side
-      const z = Math.sin(outT * Math.PI * 0.4) * 0.8;
-      
-      // Gentle Y arc
-      const y = Math.sin(outT * Math.PI) * 0.25;
-      
-      points.push(new THREE.Vector3(x, y, z));
-      
-    } else if (t < 0.55) {
-      // LUNAR FLYBY: Arc around the FAR SIDE of Moon
-      // This is the critical part - spacecraft goes BEYOND Moon (X > MOON_DISTANCE)
-      const flybyT = (t - 0.45) / 0.10;
-      const smoothT = ease(flybyT);
-      
-      // Arc center is at Moon position
-      const moonX = MOON_DISTANCE;
-      const moonZ = 0;
-      
-      // Spacecraft arcs around the far side (positive X direction from Moon)
-      // Start: approaching from Earth side (angle ~135°)
-      // Middle: directly behind Moon, farthest from Earth (angle 0°)  
-      // End: departing back toward Earth (angle ~-135°)
-      const startAngle = Math.PI * 0.7;  // Coming from Earth direction
-      const endAngle = -Math.PI * 0.7;   // Heading back to Earth
-      const angle = startAngle + smoothT * (endAngle - startAngle);
-      
-      // Position relative to Moon - ALWAYS on the far side (cos(angle) > 0 when near 0)
-      const flybyX = moonX + Math.cos(angle) * FLYBY_ALTITUDE;
-      const flybyZ = moonZ + Math.sin(angle) * FLYBY_ALTITUDE;
-      
-      // Vertical motion during flyby
-      const y = 0.25 - Math.abs(smoothT - 0.5) * 0.5;
-      
-      points.push(new THREE.Vector3(flybyX, y, flybyZ));
-      
+    // The trajectory follows a smooth elliptical-like path that:
+    // 1. Starts near Earth
+    // 2. Curves outward toward Moon
+    // 3. Loops smoothly around Moon's far side
+    // 4. Returns to Earth on a slightly different path
+    
+    // Parametric figure-8 inspired curve
+    // X: Goes from Earth (0) to beyond Moon, then back
+    // Z: Creates the loop around Moon
+    // Y: Slight vertical variation
+    
+    // Phase angle for the journey (0 to 2π creates full loop)
+    const theta = t * Math.PI * 2;
+    
+    // X position: Smooth transition from Earth to Moon and back
+    // Uses a modified sine curve that peaks at Moon distance
+    const xBase = EARTH_RADIUS + 0.5; // Start point
+    const xPeak = MOON_DISTANCE + FLYBY_CLEARANCE; // Farthest point (behind Moon)
+    
+    // Smooth bell-curve like function for X - peaks in middle of journey
+    const xFactor = Math.sin(t * Math.PI); // 0 -> 1 -> 0
+    const x = xBase + (xPeak - xBase) * xFactor;
+    
+    // Z position: Creates the figure-8 loop around Moon
+    // Positive Z on outbound, negative Z on return
+    // The loop happens near the Moon (when t is around 0.5)
+    const zAmplitude = 1.5; // Width of the path
+    
+    // Create asymmetric figure-8: outbound on one side, return on other
+    let z: number;
+    if (t < 0.5) {
+      // Outbound: curve in positive Z
+      const outT = t * 2; // 0 to 1 for first half
+      z = Math.sin(outT * Math.PI) * zAmplitude * 0.6;
     } else {
-      // RETURN TRANSIT: Moon departure back to Earth
-      const returnT = ease((t - 0.55) / 0.45);
-      
-      // Start from behind Moon, curve back to Earth
-      const startX = MOON_DISTANCE + FLYBY_ALTITUDE * 0.5;
-      const endX = EARTH_RADIUS + 0.5;
-      const x = startX - returnT * (startX - endX);
-      
-      // Return on opposite side (negative Z)
-      const z = -Math.sin((1 - returnT) * Math.PI * 0.4) * 0.8;
-      
-      // Arc below on return
-      const y = -Math.sin((1 - returnT) * Math.PI) * 0.2;
-      
-      points.push(new THREE.Vector3(x, y, z));
+      // Return: curve in negative Z  
+      const retT = (t - 0.5) * 2; // 0 to 1 for second half
+      z = -Math.sin(retT * Math.PI) * zAmplitude * 0.6;
     }
+    
+    // Add the lunar flyby loop - smooth circular arc around Moon's far side
+    // This creates the distinctive loop at the Moon
+    if (t > 0.35 && t < 0.65) {
+      const flybyT = (t - 0.35) / 0.3; // 0 to 1 during flyby phase
+      const loopAngle = (flybyT - 0.5) * Math.PI * 1.2; // -0.6π to +0.6π
+      
+      // Add loop displacement centered at Moon position
+      const loopRadius = FLYBY_CLEARANCE * 0.8;
+      const loopX = Math.cos(loopAngle) * loopRadius * 0.3;
+      const loopZ = Math.sin(loopAngle) * loopRadius;
+      
+      // Blend the loop into the main trajectory smoothly
+      const blend = Math.sin(flybyT * Math.PI); // 0 -> 1 -> 0 smooth blend
+      z += loopZ * blend;
+    }
+    
+    // Y position: gentle vertical arc
+    const y = Math.sin(t * Math.PI * 2) * 0.15;
+    
+    points.push(new THREE.Vector3(x, y, z));
   }
   
   return points;
@@ -375,15 +371,15 @@ function ArtemisTrajectory({ progress, showFullPath = true, isSimulating = false
             </Html>
           </group>
           
-          {/* Lunar flyby point - at farthest point behind Moon (50% of trajectory) */}
+          {/* Lunar flyby point - at farthest point (50% of trajectory) */}
           <group position={trajectoryPoints[Math.floor(trajectoryPoints.length * 0.50)]}>
             <mesh>
               <sphereGeometry args={[0.04, 12, 12]} />
               <meshBasicMaterial color={ARTEMIS_COLOR} transparent opacity={0.9} />
             </mesh>
-            <Html position={[0, 0.12, 0]} center>
+            <Html position={[0, 0.15, 0]} center>
               <div className="text-[7px] text-[#E040FB] whitespace-nowrap bg-[rgba(10,0,15,0.9)] px-1 py-0.5 rounded pointer-events-none border border-[rgba(224,64,251,0.25)]">
-                FAR SIDE FLYBY
+                FLYBY
               </div>
             </Html>
           </group>
