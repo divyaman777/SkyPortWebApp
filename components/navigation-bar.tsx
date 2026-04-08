@@ -95,10 +95,14 @@ export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle, sho
             {/* Dropdown panel */}
             {simulationsOpen && (
               <>
-                {/* Backdrop to close dropdown */}
+                {/* Backdrop to close dropdown - transparent but clickable */}
                 <div 
-                  className="fixed inset-0 z-40"
-                  onClick={() => setSimulationsOpen(false)}
+                  className="fixed inset-0 z-40 bg-transparent cursor-default"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSimulationsOpen(false);
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
                 />
                 <div className="absolute top-full right-0 mt-2 w-72 sm:w-80 glass-panel border border-[rgba(0,212,255,0.3)] rounded-lg p-2 z-50">
                   <div className="text-xs text-muted-foreground px-2 py-1.5 border-b border-[rgba(0,255,65,0.1)] mb-2 flex items-center justify-between">
