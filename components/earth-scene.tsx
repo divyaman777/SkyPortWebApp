@@ -5,6 +5,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { Satellite, categoryColors, SatelliteCategory } from '@/lib/satellite-data';
+import { ArtemisIISimulation } from '@/components/simulations/artemis-ii-simulation';
 
 // GeoJSON types
 interface GeoJSONGeometry {
@@ -197,6 +198,7 @@ interface EarthSceneProps {
   onSatelliteClick: (satellite: Satellite) => void;
   onSatelliteHover: (satellite: Satellite | null, x: number, y: number) => void;
   filters: Record<SatelliteCategory, boolean>;
+  activeSimulations?: string[];
 }
 
 // Convert lat/lon to 3D position on sphere
@@ -1332,7 +1334,8 @@ export function EarthScene({
   selectedSatellite, 
   onSatelliteClick,
   onSatelliteHover,
-  filters 
+  filters,
+  activeSimulations = []
 }: EarthSceneProps) {
   const [moonSelected, setMoonSelected] = useState(false);
   
@@ -1380,6 +1383,11 @@ export function EarthScene({
           onSatelliteHover={onSatelliteHover}
           filters={filters}
         />
+        
+        {/* Mission Simulations */}
+        {activeSimulations.includes('artemis-ii') && (
+          <ArtemisIISimulation isActive={true} simulationSpeed={8000} />
+        )}
       </Suspense>
       
       <OrbitControls

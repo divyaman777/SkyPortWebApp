@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, SlidersHorizontal, Coffee, Heart, X } from 'lucide-react';
+import { Search, SlidersHorizontal, Coffee, Heart, X, Orbit, ChevronDown, Check } from 'lucide-react';
+import { AVAILABLE_SIMULATIONS } from '@/lib/artemis-data';
 
 interface NavigationBarProps {
   searchQuery: string;
@@ -9,11 +10,14 @@ interface NavigationBarProps {
   onFilterToggle: () => void;
   showSupportModal: boolean;
   onSupportModalChange: (show: boolean) => void;
+  activeSimulations: string[];
+  onToggleSimulation: (simId: string) => void;
 }
 
-export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle, showSupportModal, onSupportModalChange }: NavigationBarProps) {
+export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle, showSupportModal, onSupportModalChange, activeSimulations, onToggleSimulation }: NavigationBarProps) {
   const [cursorVisible, setCursorVisible] = useState(true);
   const [supportHovered, setSupportHovered] = useState(false);
+  const [simulationsOpen, setSimulationsOpen] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -67,6 +71,91 @@ export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle, sho
             <SlidersHorizontal className="w-4 h-4 text-[#00FF41]" />
             <span className="hidden sm:inline text-muted-foreground">[--filter]</span>
           </button>
+
+          {/* Simulations dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setSimulationsOpen(!simulationsOpen)}
+              className={`flex items-center gap-2 glass-panel px-3 py-1.5 rounded transition-colors text-sm ${
+                activeSimulations.length > 0 
+                  ? 'border-[#00D4FF] hover:border-[#00D4FF]' 
+                  : 'hover:border-[#00D4FF]'
+              }`}
+            >
+              <Orbit className={`w-4 h-4 ${activeSimulations.length > 0 ? 'text-[#00D4FF]' : 'text-[#00D4FF]'}`} />
+              <span className="hidden sm:inline text-muted-foreground">[--missions]</span>
+              {activeSimulations.length > 0 && (
+                <span className="w-4 h-4 rounded-full bg-[#00D4FF] text-black text-[10px] font-bold flex items-center justify-center">
+                  {activeSimulations.length}
+                </span>
+              )}
+              <ChevronDown className={`w-3 h-3 text-muted-foreground transition-transform ${simulationsOpen ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {/* Dropdown panel */}
+            {simulationsOpen && (
+              <>
+                {/* Backdrop to close dropdown */}
+                <div 
+                  className="fixed inset-0 z-40"
+                  onClick={() => setSimulationsOpen(false)}
+                />
+                <div className="absolute top-full right-0 mt-2 w-80 glass-panel border border-[rgba(0,212,255,0.3)] rounded-lg p-2 z-50">
+                  <div className="text-xs text-muted-foreground px-2 py-1.5 border-b border-[rgba(0,255,65,0.1)] mb-2 flex items-center justify-between">
+                    <span>
+                      <span className="text-[#00D4FF]">$</span> select_mission_simulation
+                    </span>
+                    <span className="text-[9px] text-[#00FF41]">
+                      {activeSimulations.length} active
+                    </span>
+                  </div>
+                  
+                  {AVAILABLE_SIMULATIONS.map((sim) => {
+                    const isActive = activeSimulations.includes(sim.id);
+                    return (
+                      <button
+                        key={sim.id}
+                        onClick={() => onToggleSimulation(sim.id)}
+                        className={`w-full flex items-center gap-3 px-2 py-2.5 rounded text-left transition-all mb-1 ${
+                          isActive 
+                            ? 'bg-[rgba(0,212,255,0.15)] border border-[rgba(0,212,255,0.3)]' 
+                            : 'hover:bg-[rgba(0,255,65,0.05)] border border-transparent'
+                        }`}
+                      >
+                        <div 
+                          className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                            isActive 
+                              ? 'bg-[#00D4FF] border-[#00D4FF]' 
+                              : 'border-muted-foreground'
+                          }`}
+                        >
+                          {isActive && <Check className="w-3 h-3 text-black" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium" style={{ color: sim.color }}>{sim.name}</span>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                              sim.status === 'ACTIVE' ? 'bg-[rgba(0,255,65,0.2)] text-[#00FF41]' :
+                              sim.status === 'PLANNED' ? 'bg-[rgba(0,212,255,0.2)] text-[#00D4FF]' :
+                              'bg-[rgba(128,128,128,0.2)] text-muted-foreground'
+                            }`}>
+                              {sim.status}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground truncate">{sim.description}</p>
+                          <p className="text-[9px] text-muted-foreground/70">{sim.agency}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                  
+                  <div className="text-[9px] text-muted-foreground px-2 pt-2 mt-1 border-t border-[rgba(0,255,65,0.1)]">
+                    <span className="text-[#FFB400]">*</span> More missions coming soon
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
 
           {/* Support/Fuel button - subtle */}
           <button

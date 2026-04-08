@@ -36,6 +36,15 @@ export default function Skyport() {
   });
   
   const [showSupportModal, setShowSupportModal] = useState(false);
+  const [activeSimulations, setActiveSimulations] = useState<string[]>([]);
+  
+  const toggleSimulation = (simId: string) => {
+    setActiveSimulations(prev => 
+      prev.includes(simId) 
+        ? prev.filter(id => id !== simId)
+        : [...prev, simId]
+    );
+  };
 
   // Initialize satellites
   useEffect(() => {
@@ -319,6 +328,8 @@ export default function Skyport() {
         onFilterToggle={() => setFilterPanelOpen(prev => !prev)}
         showSupportModal={showSupportModal}
         onSupportModalChange={setShowSupportModal}
+        activeSimulations={activeSimulations}
+        onToggleSimulation={toggleSimulation}
       />
 
       {/* Main content area */}
@@ -336,6 +347,7 @@ export default function Skyport() {
           onSatelliteClick={handleSatelliteClick}
           onSatelliteHover={handleSatelliteHover}
           filters={filters}
+          activeSimulations={activeSimulations}
         />
       </main>
 
