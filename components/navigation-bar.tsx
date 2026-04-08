@@ -43,53 +43,53 @@ export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle, sho
         </div>
 
         {/* Right side controls */}
-        <div className="flex items-center gap-4">
-          {/* Search */}
-          <div className="flex items-center gap-2 glass-panel px-3 py-1.5 rounded">
-            <span className="text-[#00FF41] text-sm">&gt;</span>
-            <span className="text-muted-foreground text-sm hidden sm:inline">search_satellite:</span>
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Search - compact on mobile */}
+          <div className="flex items-center gap-1 sm:gap-2 glass-panel px-2 sm:px-3 py-1.5 rounded">
+            <Search className="w-4 h-4 text-[#00FF41] sm:hidden" />
+            <span className="text-[#00FF41] text-sm hidden sm:inline">&gt;</span>
+            <span className="text-muted-foreground text-sm hidden lg:inline">search:</span>
             <div className="relative">
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="[____________________]"
-                className="bg-transparent border-none outline-none text-[#00D4FF] placeholder:text-muted-foreground w-32 sm:w-48 text-sm"
+                placeholder="[____]"
+                className="bg-transparent border-none outline-none text-[#00D4FF] placeholder:text-muted-foreground w-12 sm:w-24 md:w-32 lg:w-40 text-sm"
               />
               {searchQuery === '' && (
-                <span className={`absolute right-0 top-0 text-[#00FF41] ${cursorVisible ? 'opacity-100' : 'opacity-0'}`}>|</span>
+                <span className={`absolute right-0 top-0 text-[#00FF41] hidden sm:inline ${cursorVisible ? 'opacity-100' : 'opacity-0'}`}>|</span>
               )}
             </div>
-            <Search className="w-4 h-4 text-muted-foreground" />
           </div>
 
           {/* Filter toggle */}
           <button
             onClick={onFilterToggle}
-            className="flex items-center gap-2 glass-panel px-3 py-1.5 rounded hover:border-[#00FF41] transition-colors text-sm"
+            className="flex items-center gap-1 sm:gap-2 glass-panel px-2 sm:px-3 py-1.5 rounded hover:border-[#00FF41] transition-colors text-sm"
           >
             <SlidersHorizontal className="w-4 h-4 text-[#00FF41]" />
-            <span className="hidden sm:inline text-muted-foreground">[--filter]</span>
+            <span className="hidden md:inline text-muted-foreground">[--filter]</span>
           </button>
 
           {/* Simulations dropdown */}
           <div className="relative">
             <button
               onClick={() => setSimulationsOpen(!simulationsOpen)}
-              className={`flex items-center gap-2 glass-panel px-3 py-1.5 rounded transition-colors text-sm ${
+              className={`flex items-center gap-1 sm:gap-2 glass-panel px-2 sm:px-3 py-1.5 rounded transition-colors text-sm ${
                 activeSimulations.length > 0 
                   ? 'border-[#00D4FF] hover:border-[#00D4FF]' 
                   : 'hover:border-[#00D4FF]'
               }`}
             >
               <Orbit className={`w-4 h-4 ${activeSimulations.length > 0 ? 'text-[#00D4FF]' : 'text-[#00D4FF]'}`} />
-              <span className="hidden sm:inline text-muted-foreground">[--missions]</span>
+              <span className="hidden md:inline text-muted-foreground">[--simulate]</span>
               {activeSimulations.length > 0 && (
                 <span className="w-4 h-4 rounded-full bg-[#00D4FF] text-black text-[10px] font-bold flex items-center justify-center">
                   {activeSimulations.length}
                 </span>
               )}
-              <ChevronDown className={`w-3 h-3 text-muted-foreground transition-transform ${simulationsOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-3 h-3 text-muted-foreground transition-transform hidden sm:block ${simulationsOpen ? 'rotate-180' : ''}`} />
             </button>
             
             {/* Dropdown panel */}
@@ -100,10 +100,10 @@ export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle, sho
                   className="fixed inset-0 z-40"
                   onClick={() => setSimulationsOpen(false)}
                 />
-                <div className="absolute top-full right-0 mt-2 w-80 glass-panel border border-[rgba(0,212,255,0.3)] rounded-lg p-2 z-50">
+                <div className="absolute top-full right-0 mt-2 w-72 sm:w-80 glass-panel border border-[rgba(0,212,255,0.3)] rounded-lg p-2 z-50">
                   <div className="text-xs text-muted-foreground px-2 py-1.5 border-b border-[rgba(0,255,65,0.1)] mb-2 flex items-center justify-between">
                     <span>
-                      <span className="text-[#00D4FF]">$</span> select_mission_simulation
+                      <span className="text-[#00D4FF]">$</span> select_simulation
                     </span>
                     <span className="text-[9px] text-[#00FF41]">
                       {activeSimulations.length} active
@@ -150,7 +150,7 @@ export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle, sho
                   })}
                   
                   <div className="text-[9px] text-muted-foreground px-2 pt-2 mt-1 border-t border-[rgba(0,255,65,0.1)]">
-                    <span className="text-[#FFB400]">*</span> More missions coming soon
+                    <span className="text-[#FFB400]">*</span> More simulations coming soon
                   </div>
                 </div>
               </>

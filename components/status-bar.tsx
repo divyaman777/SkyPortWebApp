@@ -97,49 +97,50 @@ export function StatusBar({ overheadCount, onSupportClick }: StatusBarProps) {
 
   return (
     <footer className="fixed bottom-0 left-0 right-0 z-50 h-10 glass-panel border-t border-[rgba(0,255,65,0.2)]">
-      <div className="flex items-center justify-between h-full px-4">
+      <div className="flex items-center justify-between h-full px-2 sm:px-4">
         {/* Left - Data source */}
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex items-center gap-1 sm:gap-2 text-[10px] sm:text-xs">
           <span className="text-[#00FF41]">&gt;</span>
-          <span className="text-muted-foreground">data_src:</span>
+          <span className="text-muted-foreground hidden sm:inline">data_src:</span>
           <a 
             href="https://celestrak.org/SOCRATES" 
             target="_blank" 
             rel="noopener noreferrer"
-            className="text-[#00D4FF] hover:text-[#00FF41] transition-colors"
+            className="text-[#00D4FF] hover:text-[#00FF41] transition-colors truncate max-w-[80px] sm:max-w-none"
           >
-            celestrak.org/SOCRATES
+            <span className="sm:hidden">celestrak</span>
+            <span className="hidden sm:inline">celestrak.org</span>
           </a>
-          <span className="text-muted-foreground">|</span>
-          <span className="text-muted-foreground">refresh:</span>
-          <span className="text-[#00FF41]">auto/30s</span>
-          <span className={`text-[#00FF41] ${cursorVisible ? 'opacity-100' : 'opacity-0'}`}>_</span>
+          <span className="text-muted-foreground hidden md:inline">|</span>
+          <span className="text-muted-foreground hidden md:inline">refresh:</span>
+          <span className="text-[#00FF41] hidden md:inline">auto/30s</span>
+          <span className={`text-[#00FF41] hidden sm:inline ${cursorVisible ? 'opacity-100' : 'opacity-0'}`}>_</span>
         </div>
 
         {/* Center - Mini world map */}
-        <div className="hidden md:block">
+        <div className="hidden lg:block">
           <MiniWorldMap />
         </div>
 
         {/* Right - Overhead count and support */}
-        <div className="flex items-center gap-2 text-xs">
-          <div className="hidden sm:flex items-center gap-2">
-            <span className="text-muted-foreground">overhead_now:</span>
-            <span className="text-[#00FF41] font-vt323 text-base glow-green">{overheadCount}</span>
-            <span className="text-muted-foreground">objects</span>
+        <div className="flex items-center gap-1 sm:gap-2 text-[10px] sm:text-xs">
+          <div className="flex items-center gap-1 sm:gap-2">
+            <span className="text-muted-foreground hidden sm:inline">overhead:</span>
+            <span className="text-[#00FF41] font-vt323 text-sm sm:text-base glow-green">{overheadCount}</span>
+            <span className="text-muted-foreground hidden md:inline">objects</span>
           </div>
           
-          <span className="text-muted-foreground hidden sm:inline">|</span>
+          <span className="text-muted-foreground hidden md:inline">|</span>
           
           {/* Support CTA - terminal style */}
           <button
             onClick={onSupportClick}
-            className="group flex items-center gap-1.5 px-2 py-1 glass-panel rounded hover:border-[#FFB300] transition-all duration-200"
+            className="group flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1 glass-panel rounded hover:border-[#FFB300] transition-all duration-200"
           >
             <Rocket className="w-3 h-3 text-[#FFB300]" />
-            <span className="text-muted-foreground group-hover:text-[#FFB300] transition-colors">[</span>
-            <span className="text-[#FFB300] group-hover:glow-amber transition-all">FUEL_MISSION</span>
-            <span className="text-muted-foreground group-hover:text-[#FFB300] transition-colors">]</span>
+            <span className="text-muted-foreground group-hover:text-[#FFB300] transition-colors hidden sm:inline">[</span>
+            <span className="text-[#FFB300] group-hover:glow-amber transition-all text-[10px] sm:text-xs">SUPPORT</span>
+            <span className="text-muted-foreground group-hover:text-[#FFB300] transition-colors hidden sm:inline">]</span>
           </button>
         </div>
       </div>
