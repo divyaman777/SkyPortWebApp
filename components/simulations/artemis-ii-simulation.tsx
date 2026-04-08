@@ -125,85 +125,109 @@ function OrionSpacecraft({ position, scale = 1 }: OrionSpacecraftProps) {
   );
 }
 
-// Generate trajectory points for Artemis II free-return trajectory
-// Based on NASA SVS visualization: smooth figure-8 curve around Earth and Moon
-// Reference: https://svs.gsfc.nasa.gov/5610
+// Generate trajectory points for Artemis II circumlunar free-return trajectory
 // 
-// The trajectory is a SMOOTH CONTINUOUS CURVE with NO sharp angles
-// It forms a figure-8 pattern when viewed from above
-// Closest lunar approach: ~6,513 km from surface
+// ORBITAL MECHANICS EXPLANATION:
+// A free-return trajectory is NOT a loop around the Moon.
+// It's a HYPERBOLIC FLYBY - the spacecraft approaches, Moon's gravity
+// bends the path smoothly, and it exits on a different trajectory.
+//
+// The path looks like this (top-down view):
+//
+//     Earth                                    Moon
+//       O ----→----→----→----→----→----→---╮    ○
+//         ←----←----←----←----←----←----←--╯
+//
+// The spacecraft travels outbound (top path), swings BEHIND the Moon
+// (the curved part on the right), and returns (bottom path).
+// 
+// Key: The curve happens BEHIND the Moon (away from Earth), NOT around it.
+// Closest approach: 6,513 km from lunar surface
+//
+// References: NASA SVS, Wikipedia "Free-return trajectory"
 function generateTrajectoryPoints(): THREE.Vector3[] {
   const points: THREE.Vector3[] = [];
-  const segments = 800; // High segment count for smooth curve
+  const segments = 1000;
   
-  // Key distances in our scene scale
   const MOON_RADIUS = 0.45;
-  const FLYBY_CLEARANCE = MOON_RADIUS + 0.9; // Safe visual clearance from Moon
+  // Closest approach distance from Moon CENTER (not surface)
+  // 6,513 km from surface + ~1,737 km Moon radius = ~8,250 km from center
+  // In our scene scale, this is roughly Moon radius + clearance
+  const PERILUNE = MOON_RADIUS + 0.7; // Clear visual separation from Moon
   
   for (let i = 0; i <= segments; i++) {
     const t = i / segments;
     
-    // Use a single continuous parametric curve for the entire trajectory
-    // This ensures NO sharp corners at phase transitions
+    // The trajectory consists of:
+    // 1. Outbound coast (Earth to Moon vicinity) - t: 0 to 0.45
+    // 2. Lunar flyby (hyperbolic curve behind Moon) - t: 0.45 to 0.55
+    // 3. Return coast (Moon vicinity to Earth) - t: 0.55 to 1.0
     
-    // The trajectory follows a smooth elliptical-like path that:
-    // 1. Starts near Earth
-    // 2. Curves outward toward Moon
-    // 3. Loops smoothly around Moon's far side
-    // 4. Returns to Earth on a slightly different path
+    let x: number, y: number, z: number;
     
-    // Parametric figure-8 inspired curve
-    // X: Goes from Earth (0) to beyond Moon, then back
-    // Z: Creates the loop around Moon
-    // Y: Slight vertical variation
-    
-    // Phase angle for the journey (0 to 2π creates full loop)
-    const theta = t * Math.PI * 2;
-    
-    // X position: Smooth transition from Earth to Moon and back
-    // Uses a modified sine curve that peaks at Moon distance
-    const xBase = EARTH_RADIUS + 0.5; // Start point
-    const xPeak = MOON_DISTANCE + FLYBY_CLEARANCE; // Farthest point (behind Moon)
-    
-    // Smooth bell-curve like function for X - peaks in middle of journey
-    const xFactor = Math.sin(t * Math.PI); // 0 -> 1 -> 0
-    const x = xBase + (xPeak - xBase) * xFactor;
-    
-    // Z position: Creates the figure-8 loop around Moon
-    // Positive Z on outbound, negative Z on return
-    // The loop happens near the Moon (when t is around 0.5)
-    const zAmplitude = 1.5; // Width of the path
-    
-    // Create asymmetric figure-8: outbound on one side, return on other
-    let z: number;
-    if (t < 0.5) {
-      // Outbound: curve in positive Z
-      const outT = t * 2; // 0 to 1 for first half
-      z = Math.sin(outT * Math.PI) * zAmplitude * 0.6;
+    if (t < 0.45) {
+      // OUTBOUND: Smooth arc from Earth toward Moon
+      // Approaches Moon from one side (positive Z)
+      const outT = t / 0.45; // Normalize to 0-1
+      
+      // X: Travels from Earth orbit to near Moon
+      const startX = EARTH_RADIUS + 0.5;
+      const endX = MOON_DISTANCE - PERILUNE * 0.5;
+      // Use smooth easing for natural acceleration
+      const easeT = outT * outT * (3 - 2 * outT); // smoothstep
+      x = startX + (endX - startX) * easeT;
+      
+      // Z: Approaches from positive Z side
+      // Gradual curve that peaks partway through
+      z = Math.sin(outT * Math.PI * 0.7) * 1.2;
+      
+      // Y: Slight rise during outbound
+      y = Math.sin(outT * Math.PI) * 0.15;
+      
+    } else if (t < 0.55) {
+      // LUNAR FLYBY: Hyperbolic curve BEHIND the Moon
+      // This is the critical part - smooth gravitational curve
+      const flybyT = (t - 0.45) / 0.1; // 0 to 1 during flyby
+      
+      // The flyby path curves around the FAR side of Moon
+      // Moon is at (MOON_DISTANCE, 0, 0)
+      // Spacecraft goes to (MOON_DISTANCE + PERILUNE, 0, z) at closest
+      
+      // Smooth U-turn behind Moon using parametric curve
+      // Entry: coming from +Z, Exit: departing to -Z
+      
+      // X: Goes past Moon, curves around, comes back
+      // At t=0.5 (flyby midpoint), X should be at maximum (behind Moon)
+      const flybyX = MOON_DISTANCE + PERILUNE * Math.cos(flybyT * Math.PI);
+      x = flybyX;
+      
+      // Z: Transitions from positive to negative (the turn)
+      // Use cosine for smooth symmetric turn
+      const entryZ = 1.2;  // Z value when entering flyby
+      const exitZ = -1.2;  // Z value when exiting flyby
+      // Smooth transition using cosine
+      z = entryZ * Math.cos(flybyT * Math.PI);
+      
+      // Y: Small vertical displacement during flyby  
+      y = Math.sin(flybyT * Math.PI) * 0.1;
+      
     } else {
-      // Return: curve in negative Z  
-      const retT = (t - 0.5) * 2; // 0 to 1 for second half
-      z = -Math.sin(retT * Math.PI) * zAmplitude * 0.6;
-    }
-    
-    // Add the lunar flyby loop - smooth circular arc around Moon's far side
-    // This creates the distinctive loop at the Moon
-    if (t > 0.35 && t < 0.65) {
-      const flybyT = (t - 0.35) / 0.3; // 0 to 1 during flyby phase
-      const loopAngle = (flybyT - 0.5) * Math.PI * 1.2; // -0.6π to +0.6π
+      // RETURN: Smooth arc from Moon back to Earth
+      // Returns on opposite side (negative Z)
+      const retT = (t - 0.55) / 0.45; // Normalize to 0-1
       
-      // Add loop displacement centered at Moon position
-      const loopRadius = FLYBY_CLEARANCE * 0.8;
-      const loopX = Math.cos(loopAngle) * loopRadius * 0.3;
-      const loopZ = Math.sin(loopAngle) * loopRadius;
+      // X: Travels from near Moon back to Earth orbit
+      const startX = MOON_DISTANCE - PERILUNE * 0.5;
+      const endX = EARTH_RADIUS + 0.4;
+      const easeT = retT * retT * (3 - 2 * retT);
+      x = startX - (startX - endX) * easeT;
       
-      // Blend the loop into the main trajectory smoothly
-      const blend = Math.sin(flybyT * Math.PI); // 0 -> 1 -> 0 smooth blend
-      z += loopZ * blend;
+      // Z: Returns on negative Z side
+      z = -Math.sin((1 - retT) * Math.PI * 0.7) * 1.2;
+      
+      // Y: Slight descent during return
+      y = -Math.sin((1 - retT) * Math.PI) * 0.12;
     }
-    
-    // Y position: gentle vertical arc
-    const y = Math.sin(t * Math.PI * 2) * 0.15;
     
     points.push(new THREE.Vector3(x, y, z));
   }
@@ -291,11 +315,11 @@ function GhostMoon() {
         <ringGeometry args={[0.48, 0.51, 64]} />
         <meshBasicMaterial color="#E040FB" transparent opacity={0.12} side={THREE.DoubleSide} />
       </mesh>
-      {/* Label - positioned to side to avoid trajectory line */}
-      <Html position={[0.6, 0.5, 0]} center>
+      {/* Label - positioned to right (far side) where Orion passes */}
+      <Html position={[0.9, 0.4, 0]} center>
         <div className="text-[9px] text-[#CE93D8]/90 whitespace-nowrap bg-[rgba(10,0,15,0.9)] px-2 py-1 rounded pointer-events-none border border-[rgba(224,64,251,0.15)]">
-          <div className="text-[7px] text-muted-foreground/60 mb-0.5">Orion passes behind Moon</div>
-          <div className="text-[#E040FB]/70">6,513 km from surface</div>
+          <div className="text-[7px] text-muted-foreground/60 mb-0.5">Orion swings behind Moon</div>
+          <div className="text-[#E040FB]/70">Closest: 6,513 km</div>
         </div>
       </Html>
     </group>
