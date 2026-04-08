@@ -149,8 +149,8 @@ export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle, sho
                     );
                   })}
                   
-                  <div className="text-[9px] text-muted-foreground px-2 pt-2 mt-1 border-t border-[rgba(0,255,65,0.1)]">
-                    <span className="text-[#FFB400]">*</span> More simulations coming soon
+                  <div className="text-[10px] px-2 pt-2 mt-1 border-t border-[rgba(0,255,65,0.1)]">
+                    <span className="text-[#FFB400]">*</span> <span className="text-[#8a8a9a]">More simulations coming soon</span>
                   </div>
                 </div>
               </>

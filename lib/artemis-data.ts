@@ -32,22 +32,6 @@ export const AVAILABLE_SIMULATIONS: Simulation[] = [
     color: '#00D4FF',
     agency: 'NASA',
   },
-  {
-    id: 'starlink',
-    name: 'Starlink Train',
-    description: 'SpaceX satellite deployment',
-    status: 'ACTIVE',
-    color: '#FFFFFF',
-    agency: 'SpaceX',
-  },
-  {
-    id: 'jwst',
-    name: 'James Webb',
-    description: 'Space telescope at L2 point',
-    status: 'ACTIVE',
-    color: '#FFD700',
-    agency: 'NASA/ESA',
-  },
 ];
 
 export const ARTEMIS_II_MISSION = {
