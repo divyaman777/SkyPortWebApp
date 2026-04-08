@@ -326,6 +326,7 @@ export default function Skyport() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onFilterToggle={() => setFilterPanelOpen(prev => !prev)}
+        isFilterOpen={filterPanelOpen}
         showSupportModal={showSupportModal}
         onSupportModalChange={setShowSupportModal}
         activeSimulations={activeSimulations}

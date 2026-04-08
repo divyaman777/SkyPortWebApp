@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Search, SlidersHorizontal, Coffee, Heart, X, Orbit, ChevronDown, Check } from 'lucide-react';
 import { AVAILABLE_SIMULATIONS } from '@/lib/artemis-data';
 
@@ -8,16 +8,18 @@ interface NavigationBarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onFilterToggle: () => void;
+  isFilterOpen: boolean;
   showSupportModal: boolean;
   onSupportModalChange: (show: boolean) => void;
   activeSimulations: string[];
   onToggleSimulation: (simId: string) => void;
 }
 
-export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle, showSupportModal, onSupportModalChange, activeSimulations, onToggleSimulation }: NavigationBarProps) {
+export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle, isFilterOpen, showSupportModal, onSupportModalChange, activeSimulations, onToggleSimulation }: NavigationBarProps) {
   const [cursorVisible, setCursorVisible] = useState(true);
   const [supportHovered, setSupportHovered] = useState(false);
   const [simulationsOpen, setSimulationsOpen] = useState(false);
+  const simulationsDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -25,6 +27,21 @@ export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle, sho
     }, 500);
     return () => clearInterval(interval);
   }, []);
+
+  // Close dropdown when clicking anywhere outside
+  useEffect(() => {
+    if (!simulationsOpen) return;
+    
+    const handleClickOutside = (event: MouseEvent) => {
+      if (simulationsDropdownRef.current && !simulationsDropdownRef.current.contains(event.target as Node)) {
+        setSimulationsOpen(false);
+      }
+    };
+
+    // Use capture phase to catch clicks before they reach other elements
+    document.addEventListener('mousedown', handleClickOutside, true);
+    return () => document.removeEventListener('mousedown', handleClickOutside, true);
+  }, [simulationsOpen]);
 
   return (
     <>
@@ -66,45 +83,39 @@ export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle, sho
           {/* Filter toggle */}
           <button
             onClick={onFilterToggle}
-            className="flex items-center gap-1 sm:gap-2 glass-panel px-2 sm:px-3 py-1.5 rounded hover:border-[#00FF41] transition-colors text-sm"
+            className={`flex items-center gap-1 sm:gap-2 glass-panel px-2 sm:px-3 py-1.5 rounded transition-colors text-sm ${
+              isFilterOpen ? 'border-[#00FF41]' : 'hover:border-[#00FF41]'
+            }`}
           >
-            <SlidersHorizontal className="w-4 h-4 text-[#00FF41]" />
-            <span className="hidden md:inline text-muted-foreground">[--filter]</span>
+            <SlidersHorizontal className={`w-4 h-4 text-[#00FF41] ${isFilterOpen ? 'drop-shadow-[0_0_6px_rgba(0,255,65,0.8)]' : ''}`} />
+            <span className={`hidden md:inline transition-all ${isFilterOpen ? 'text-[#00FF41] drop-shadow-[0_0_6px_rgba(0,255,65,0.8)]' : 'text-muted-foreground'}`}>[--filter]</span>
           </button>
 
           {/* Simulations dropdown */}
-          <div className="relative">
+          <div className="relative" ref={simulationsDropdownRef}>
             <button
               onClick={() => setSimulationsOpen(!simulationsOpen)}
               className={`flex items-center gap-1 sm:gap-2 glass-panel px-2 sm:px-3 py-1.5 rounded transition-colors text-sm ${
-                activeSimulations.length > 0 
-                  ? 'border-[#00D4FF] hover:border-[#00D4FF]' 
-                  : 'hover:border-[#00D4FF]'
+                simulationsOpen 
+                  ? 'border-[#00D4FF]' 
+                  : activeSimulations.length > 0 
+                    ? 'border-[#00D4FF] hover:border-[#00D4FF]' 
+                    : 'hover:border-[#00D4FF]'
               }`}
             >
-              <Orbit className={`w-4 h-4 ${activeSimulations.length > 0 ? 'text-[#00D4FF]' : 'text-[#00D4FF]'}`} />
-              <span className="hidden md:inline text-muted-foreground">[--simulate]</span>
+              <Orbit className={`w-4 h-4 ${simulationsOpen || activeSimulations.length > 0 ? 'text-[#00D4FF] drop-shadow-[0_0_6px_rgba(0,212,255,0.8)]' : 'text-[#00D4FF]'}`} />
+              <span className={`hidden md:inline transition-all ${simulationsOpen ? 'text-[#00D4FF] drop-shadow-[0_0_6px_rgba(0,212,255,0.8)]' : 'text-muted-foreground'}`}>[--simulate]</span>
               {activeSimulations.length > 0 && (
                 <span className="w-4 h-4 rounded-full bg-[#00D4FF] text-black text-[10px] font-bold flex items-center justify-center">
                   {activeSimulations.length}
                 </span>
               )}
-              <ChevronDown className={`w-3 h-3 text-muted-foreground transition-transform hidden sm:block ${simulationsOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-3 h-3 transition-transform hidden sm:block ${simulationsOpen ? 'rotate-180 text-[#00D4FF]' : 'text-muted-foreground'}`} />
             </button>
             
             {/* Dropdown panel */}
             {simulationsOpen && (
-              <>
-                {/* Backdrop to close dropdown - transparent but clickable */}
-                <div 
-                  className="fixed inset-0 z-40 bg-transparent cursor-default"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSimulationsOpen(false);
-                  }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                />
-                <div className="absolute top-full right-0 mt-2 w-72 sm:w-80 glass-panel border border-[rgba(0,212,255,0.3)] rounded-lg p-2 z-50">
+              <div className="absolute top-full right-0 mt-2 w-72 sm:w-80 glass-panel border border-[rgba(0,212,255,0.3)] rounded-lg p-2 z-[60]">
                   <div className="text-xs text-muted-foreground px-2 py-1.5 border-b border-[rgba(0,255,65,0.1)] mb-2 flex items-center justify-between">
                     <span>
                       <span className="text-[#00D4FF]">$</span> select_simulation
@@ -157,7 +168,6 @@ export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle, sho
                     <span className="text-[#FFB400]">*</span> <span className="text-[#8a8a9a]">More simulations coming soon</span>
                   </div>
                 </div>
-              </>
             )}
           </div>
 
