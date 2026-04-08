@@ -61,9 +61,9 @@ export const ARTEMIS_II_MISSION = {
     thrust: 39000, // kN at liftoff
   },
   trajectory: {
-    type: 'Free-return lunar flyby',
+    type: 'Free-return lunar flyby (figure-8)',
     maxDistanceFromEarth: 380000, // km (beyond Moon)
-    closestApproachToMoon: 8900, // km from lunar surface
+    closestApproachToMoon: 6500, // km from lunar surface (NASA official: ~4,047 miles / 6,513 km)
     totalDistance: 1800000, // km approximate round trip
   },
 };
@@ -123,13 +123,37 @@ export function getCurrentPhase(missionTimeHours: number): MissionPhase {
   return ARTEMIS_II_PHASES[0];
 }
 
-// Calculate velocity based on mission phase (simplified Kepler approximation)
+// Calculate velocity based on mission phase using NASA/physics data
+// Real velocities: 
+// - LEO: ~7.8 km/s
+// - TLI burn peak: ~10.9 km/s 
+// - Outbound coast: gradually slows from 10.9 to ~0.9 km/s
+// - Lunar flyby: ~0.9-1.5 km/s (gravity assist)
+// - Return coast: gradually accelerates from 0.9 to ~11 km/s
+// - Re-entry: ~11.2 km/s (25,000 mph - NASA official)
 export function getVelocity(progress: number): number {
-  // Real velocities vary: ~11 km/s at TLI, ~1 km/s coasting, ~11 km/s re-entry
-  if (progress < 0.02) return 7.8; // LEO velocity
-  if (progress < 0.05) return 7.8 + progress * 60; // TLI acceleration
-  if (progress < 0.4) return 1.5 - progress * 1; // Outbound coast (slowing)
-  if (progress < 0.5) return 0.8 + Math.abs(Math.sin((progress - 0.4) * 10 * Math.PI)) * 0.3; // Lunar flyby
-  if (progress < 0.95) return 0.8 + (progress - 0.5) * 2; // Return coast (accelerating)
-  return 11.0; // Re-entry speed
+  if (progress < 0.01) {
+    // Launch to LEO
+    return 7.8;
+  } else if (progress < 0.03) {
+    // TLI burn - accelerating from 7.8 to 10.9 km/s
+    const tliProgress = (progress - 0.01) / 0.02;
+    return 7.8 + tliProgress * 3.1;
+  } else if (progress < 0.42) {
+    // Outbound coast - gradually slowing (10.9 to 0.9 km/s)
+    const coastProgress = (progress - 0.03) / 0.39;
+    return 10.9 - coastProgress * 10.0;
+  } else if (progress < 0.52) {
+    // Lunar flyby - slight speed increase from gravity assist
+    const flybyProgress = (progress - 0.42) / 0.1;
+    const flybySpeed = 0.9 + Math.sin(flybyProgress * Math.PI) * 0.6;
+    return flybySpeed;
+  } else if (progress < 0.97) {
+    // Return coast - accelerating toward Earth (0.9 to 11 km/s)
+    const returnProgress = (progress - 0.52) / 0.45;
+    return 0.9 + returnProgress * 10.1;
+  } else {
+    // Re-entry - constant ~11.2 km/s (25,000 mph NASA official)
+    return 11.2;
+  }
 }

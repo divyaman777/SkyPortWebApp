@@ -503,30 +503,58 @@ function ArtemisTrajectory({
         />
       )}
 
-      {/* Phase markers */}
-      {/* Launch point */}
-      <mesh position={trajectoryPoints[0]}>
-        <sphereGeometry args={[0.04, 8, 8]} />
-        <meshBasicMaterial color="#00FF41" />
-      </mesh>
+      {/* Phase markers with labels */}
+      {/* Launch point - Kennedy Space Center */}
+      <group position={trajectoryPoints[0]}>
+        <mesh>
+          <sphereGeometry args={[0.06, 12, 12]} />
+          <meshBasicMaterial color="#00FF41" transparent opacity={0.9} />
+        </mesh>
+        <Html position={[0, 0.15, 0]} center>
+          <div className="text-[9px] text-[#00FF41] whitespace-nowrap bg-[rgba(0,0,0,0.7)] px-1.5 py-0.5 rounded pointer-events-none">
+            LAUNCH
+          </div>
+        </Html>
+      </group>
       
-      {/* TLI marker */}
-      <mesh position={trajectoryPoints[Math.floor(trajectoryPoints.length * 0.05)]}>
-        <sphereGeometry args={[0.03, 8, 8]} />
-        <meshBasicMaterial color="#FFB400" />
-      </mesh>
+      {/* TLI marker - Trans-Lunar Injection burn */}
+      <group position={trajectoryPoints[Math.floor(trajectoryPoints.length * 0.08)]}>
+        <mesh>
+          <sphereGeometry args={[0.05, 10, 10]} />
+          <meshBasicMaterial color="#FFB400" transparent opacity={0.9} />
+        </mesh>
+        <Html position={[0, 0.15, 0]} center>
+          <div className="text-[9px] text-[#FFB400] whitespace-nowrap bg-[rgba(0,0,0,0.7)] px-1.5 py-0.5 rounded pointer-events-none">
+            TLI BURN
+          </div>
+        </Html>
+      </group>
       
-      {/* Lunar flyby point */}
-      <mesh position={trajectoryPoints[Math.floor(trajectoryPoints.length * 0.45)]}>
-        <sphereGeometry args={[0.04, 8, 8]} />
-        <meshBasicMaterial color="#00D4FF" />
-      </mesh>
+      {/* Lunar flyby point - closest approach ~6,500 km from Moon surface */}
+      <group position={trajectoryPoints[Math.floor(trajectoryPoints.length * 0.45)]}>
+        <mesh>
+          <sphereGeometry args={[0.06, 12, 12]} />
+          <meshBasicMaterial color="#00D4FF" transparent opacity={0.9} />
+        </mesh>
+        <Html position={[0, 0.18, 0]} center>
+          <div className="text-[9px] text-[#00D4FF] whitespace-nowrap bg-[rgba(0,0,0,0.7)] px-1.5 py-0.5 rounded pointer-events-none">
+            LUNAR FLYBY
+          </div>
+        </Html>
+      </group>
       
       {/* Re-entry point */}
-      <mesh position={trajectoryPoints[trajectoryPoints.length - 1]}>
-        <sphereGeometry args={[0.04, 8, 8]} />
-        <meshBasicMaterial color="#FF4444" />
-      </mesh>
+      <group position={trajectoryPoints[trajectoryPoints.length - 1]}>
+        <mesh>
+          <sphereGeometry args={[0.06, 12, 12]} />
+          <meshBasicMaterial color="#FF4444" transparent opacity={0.9} />
+        </mesh>
+        <Html position={[0, 0.15, 0]} center>
+          <div className="text-[9px] text-[#FF4444] whitespace-nowrap bg-[rgba(0,0,0,0.7)] px-1.5 py-0.5 rounded pointer-events-none">
+            RE-ENTRY
+          </div>
+        </Html>
+      </group>
     </group>
   );
 }
@@ -613,6 +641,25 @@ export function ArtemisIISimulation({
         position={spacecraftPosition}
         scale={0.6}
       />
+      
+      {/* Current position indicator - glowing ring around spacecraft */}
+      <group position={spacecraftPosition}>
+        {/* Outer glow ring */}
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.12, 0.15, 32]} />
+          <meshBasicMaterial color="#00D4FF" transparent opacity={0.6} side={THREE.DoubleSide} />
+        </mesh>
+        {/* Pulsing point light for visibility */}
+        <pointLight intensity={2} distance={4} color="#00D4FF" />
+        
+        {/* Small label above spacecraft */}
+        <Html position={[0, 0.5, 0]} center>
+          <div className="text-[10px] text-[#00D4FF] whitespace-nowrap bg-[rgba(0,10,20,0.9)] border border-[rgba(0,212,255,0.5)] px-2 py-1 rounded pointer-events-none">
+            <div className="font-bold">ORION</div>
+            <div className="text-[8px] text-[#00FF41]">{velocity.toFixed(1)} km/s</div>
+          </div>
+        </Html>
+      </group>
 
       {/* Mission info panel */}
       <Html position={[-5, 3.5, 0]} center={false}>
