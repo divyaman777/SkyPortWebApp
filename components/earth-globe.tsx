@@ -10,6 +10,8 @@ interface EarthGlobeProps {
   onSatelliteHover: (satellite: Satellite | null, x: number, y: number) => void;
   filters: Record<SatelliteCategory, boolean>;
   activeSimulations?: string[];
+  isArtemisSimulating?: boolean;
+  onOrionClick?: () => void;
 }
 
 // Dynamic import with SSR disabled for React Three Fiber
@@ -34,7 +36,9 @@ export function EarthGlobe({
   onSatelliteClick,
   onSatelliteHover,
   filters,
-  activeSimulations = []
+  activeSimulations = [],
+  isArtemisSimulating = false,
+  onOrionClick,
 }: EarthGlobeProps) {
   return (
     <div className="w-full h-full">
@@ -45,6 +49,8 @@ export function EarthGlobe({
         onSatelliteHover={onSatelliteHover}
         filters={filters}
         activeSimulations={activeSimulations}
+        isArtemisSimulating={isArtemisSimulating}
+        onOrionClick={onOrionClick}
       />
     </div>
   );

@@ -199,6 +199,8 @@ interface EarthSceneProps {
   onSatelliteHover: (satellite: Satellite | null, x: number, y: number) => void;
   filters: Record<SatelliteCategory, boolean>;
   activeSimulations?: string[];
+  isArtemisSimulating?: boolean;
+  onOrionClick?: () => void;
 }
 
 // Convert lat/lon to 3D position on sphere
@@ -1329,13 +1331,15 @@ function BackgroundClick({ onBackgroundClick }: BackgroundClickProps) {
 }
 
 // Main component
-export function EarthScene({ 
-  satellites, 
-  selectedSatellite, 
+export function EarthScene({
+  satellites,
+  selectedSatellite,
   onSatelliteClick,
   onSatelliteHover,
   filters,
-  activeSimulations = []
+  activeSimulations = [],
+  isArtemisSimulating = false,
+  onOrionClick,
 }: EarthSceneProps) {
   const [moonSelected, setMoonSelected] = useState(false);
   
@@ -1384,10 +1388,14 @@ export function EarthScene({
           filters={filters}
         />
         
-        {/* Mission Simulations */}
-        {activeSimulations.includes('artemis-ii') && (
-          <ArtemisIISimulation isActive={true} simulationSpeed={8000} />
-        )}
+{/* Artemis II Mission - always show when enabled */}
+  {activeSimulations.includes('artemis-ii') && (
+    <ArtemisIISimulation 
+      isActive={true} 
+      isSimulating={isArtemisSimulating}
+      onOrionClick={onOrionClick}
+    />
+  )}
       </Suspense>
       
       <OrbitControls

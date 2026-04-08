@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { NavigationBar } from '@/components/navigation-bar';
 import { FilterPanel } from '@/components/filter-panel';
 import { SatelliteDetail } from '@/components/satellite-detail';
+import { ArtemisDetail } from '@/components/artemis-detail';
 
 
 import { SatelliteTooltip } from '@/components/satellite-tooltip';
@@ -37,6 +38,8 @@ export default function Skyport() {
   
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [activeSimulations, setActiveSimulations] = useState<string[]>([]);
+  const [showArtemisPanel, setShowArtemisPanel] = useState(false);
+  const [isArtemisSimulating, setIsArtemisSimulating] = useState(false);
   
   const toggleSimulation = (simId: string) => {
     setActiveSimulations(prev => 
@@ -44,6 +47,11 @@ export default function Skyport() {
         ? prev.filter(id => id !== simId)
         : [...prev, simId]
     );
+  };
+  
+  const handleOrionClick = () => {
+    setShowArtemisPanel(true);
+    setSelectedSatellite(null); // Deselect any regular satellite
   };
 
   // Initialize satellites
@@ -122,6 +130,8 @@ export default function Skyport() {
   };
 
   const handleSatelliteClick = (satellite: Satellite) => {
+    // Close Artemis panel if open
+    setShowArtemisPanel(false);
     // Toggle selection - if same satellite clicked, deselect
     if (selectedSatellite?.id === satellite.id) {
       setSelectedSatellite(null);
@@ -349,6 +359,8 @@ export default function Skyport() {
           onSatelliteHover={handleSatelliteHover}
           filters={filters}
           activeSimulations={activeSimulations}
+          isArtemisSimulating={isArtemisSimulating}
+          onOrionClick={handleOrionClick}
         />
       </main>
 
@@ -366,6 +378,14 @@ export default function Skyport() {
       <SatelliteDetail 
         satellite={selectedSatellite}
         onClose={() => setSelectedSatellite(null)}
+      />
+
+      {/* Artemis II Detail Panel */}
+      <ArtemisDetail 
+        isOpen={showArtemisPanel}
+        onClose={() => setShowArtemisPanel(false)}
+        isSimulating={isArtemisSimulating}
+        onToggleSimulation={() => setIsArtemisSimulating(!isArtemisSimulating)}
       />
 
       {/* Hover Tooltip */}
