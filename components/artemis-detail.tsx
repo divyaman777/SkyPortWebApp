@@ -35,7 +35,7 @@ function MissionTimer() {
   const seconds = Math.floor((elapsed % (1000 * 60)) / 1000);
 
   return (
-    <div className="font-mono text-lg text-[#FFB400] glow-amber">
+    <div className="font-mono text-lg text-[#E040FB]">
       T+{days}d {hours.toString().padStart(2, '0')}:{minutes.toString().padStart(2, '0')}:{seconds.toString().padStart(2, '0')}
     </div>
   );
@@ -57,19 +57,19 @@ export function ArtemisDetail({ isOpen, onClose, isSimulating, onToggleSimulatio
   const mission = ARTEMIS_II_MISSION;
 
   return (
-    <aside className="fixed right-0 top-14 bottom-10 w-full md:w-[420px] glass-panel border-l border-[rgba(0,212,255,0.3)] z-50 scan-reveal overflow-hidden flex flex-col bg-[#0a0a0f]">
+    <aside className="fixed right-0 top-14 bottom-10 w-full md:w-[420px] glass-panel border-l border-[rgba(224,64,251,0.25)] z-50 scan-reveal overflow-hidden flex flex-col bg-[#0a0a0f]">
       {/* Title bar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-[rgba(0,212,255,0.3)] bg-[rgba(0,20,40,0.5)]">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-[rgba(224,64,251,0.25)] bg-[rgba(20,0,30,0.5)]">
         <div className="flex items-center gap-2">
-          <Rocket className="w-4 h-4 text-[#00D4FF]" />
-          <span className="text-[#00D4FF] text-sm font-bold">ARTEMIS II</span>
+          <Rocket className="w-4 h-4 text-[#E040FB]" />
+          <span className="text-[#E040FB] text-sm font-bold">ARTEMIS II</span>
           <span className="text-[8px] px-1.5 py-0.5 rounded bg-[rgba(0,255,65,0.2)] text-[#00FF41] animate-pulse">
             LIVE
           </span>
         </div>
         <button 
           onClick={onClose}
-          className="text-muted-foreground hover:text-[#00D4FF] transition-colors"
+          className="text-muted-foreground hover:text-[#E040FB] transition-colors"
         >
           <X className="w-4 h-4" />
         </button>
@@ -86,7 +86,7 @@ export function ArtemisDetail({ isOpen, onClose, isSimulating, onToggleSimulatio
         </div>
 
         {/* Live Status */}
-        <div className="bg-[rgba(0,212,255,0.1)] border border-[rgba(0,212,255,0.3)] rounded-lg p-3">
+        <div className="bg-[rgba(224,64,251,0.08)] border border-[rgba(224,64,251,0.25)] rounded-lg p-3">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-muted-foreground">Mission Elapsed Time</span>
             <MissionTimer />
@@ -101,11 +101,11 @@ export function ArtemisDetail({ isOpen, onClose, isSimulating, onToggleSimulatio
           <div className="mt-3">
             <div className="flex justify-between text-xs mb-1">
               <span className="text-muted-foreground">Mission Progress</span>
-              <span className="text-[#00D4FF]">{(progress.progress * 100).toFixed(1)}%</span>
+              <span className="text-[#E040FB]">{(progress.progress * 100).toFixed(1)}%</span>
             </div>
-            <div className="h-2 bg-[rgba(0,212,255,0.15)] rounded-full overflow-hidden">
+            <div className="h-2 bg-[rgba(224,64,251,0.15)] rounded-full overflow-hidden">
               <div 
-                className="h-full bg-gradient-to-r from-[#00FF41] via-[#00D4FF] to-[#00D4FF] transition-all duration-1000"
+                className="h-full bg-gradient-to-r from-[#CE93D8] via-[#E040FB] to-[#E040FB] transition-all duration-1000"
                 style={{ width: `${progress.progress * 100}%` }}
               />
             </div>

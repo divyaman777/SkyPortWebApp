@@ -125,88 +125,82 @@ function OrionSpacecraft({ position, scale = 1 }: OrionSpacecraftProps) {
   );
 }
 
-// Generate trajectory points for the free-return path
-// Based on NASA's Artemis II hybrid free-return trajectory
-// Key: Orion loops AROUND the far side of the Moon, not through it
-// Closest approach: 6,545 km (4,067 miles) from lunar surface
-// The path forms a figure-8 shape when viewed from above
+// Generate trajectory points for Artemis II free-return trajectory
+// Based on NASA's official hybrid free-return trajectory
+// Key insight: Orion approaches Moon, swings WIDE around the FAR SIDE, then returns
+// The trajectory goes BEHIND the Moon (away from Earth), not in front
+// Closest approach: 6,513 km from lunar surface
 function generateTrajectoryPoints(): THREE.Vector3[] {
   const points: THREE.Vector3[] = [];
-  const segments = 500; // More segments for smoother path
+  const segments = 600; // Many segments for ultra-smooth curves
   
-  // Moon visual radius in scene
   const MOON_RADIUS = 0.45;
-  // Flyby distance (6,545 km = ~3.7% of Earth-Moon distance)
-  // In our scene: Moon radius + safe clearance
-  const FLYBY_CLEARANCE = MOON_RADIUS + 0.25; // Clear around Moon's far side
+  // Flyby clearance - spacecraft passes well behind Moon
+  const FLYBY_RADIUS = MOON_RADIUS + 0.8; // Large clearance for clear visual separation
   
   for (let i = 0; i <= segments; i++) {
     const t = i / segments;
     
-    if (t < 0.02) {
-      // Launch phase - rising from Earth surface (Kennedy Space Center)
-      const launchT = t / 0.02;
-      const radius = EARTH_RADIUS + launchT * 0.4;
-      const angle = -0.3 + launchT * 0.15; // Starting angle
-      const y = launchT * 0.2;
-      points.push(new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius));
-    } else if (t < 0.08) {
-      // Earth orbit and TLI burn phase
-      const orbitT = (t - 0.02) / 0.06;
-      const radius = EARTH_RADIUS + 0.4 + orbitT * 0.3;
-      const angle = -0.15 + orbitT * 0.25;
-      const y = 0.2 + orbitT * 0.1;
-      points.push(new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius));
-    } else if (t < 0.45) {
-      // Outbound transit: Earth to Moon approach
-      const outT = (t - 0.08) / 0.37;
-      // Curved path toward Moon
-      const radius = EARTH_RADIUS + 0.7 + outT * (MOON_DISTANCE - EARTH_RADIUS - 0.7 - FLYBY_CLEARANCE);
-      const angle = 0.1 + outT * 0.15; // Gradually approach Moon's direction
-      // Arc above the orbital plane going outbound
-      const y = Math.sin(outT * Math.PI * 0.8) * 0.5;
-      points.push(new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius));
-    } else if (t < 0.58) {
-      // Lunar flyby - curve AROUND the far side of Moon
-      // This is the critical part: Orion goes BEHIND the Moon
-      const flybyT = (t - 0.45) / 0.13;
-      const moonPos = new THREE.Vector3(MOON_DISTANCE, 0, 0);
+    // Use smooth easing functions for natural curves
+    const smoothStep = (x: number) => x * x * (3 - 2 * x);
+    const easeInOut = (x: number) => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+    
+    if (t < 0.42) {
+      // OUTBOUND: Earth vicinity to Moon approach
+      // Start from a point in high Earth orbit (no surface launch - Earth rotates)
+      const outT = smoothStep(t / 0.42);
       
-      // Arc around the far side (positive X direction, away from Earth)
-      // Start from approach angle, sweep around to departure angle
-      const startAngle = Math.PI * 0.85; // Approaching from Earth side
-      const endAngle = Math.PI * 1.15; // Departing back toward Earth
-      const flybyAngle = startAngle + flybyT * (endAngle - startAngle);
+      // Smooth bezier-like curve from Earth to Moon approach
+      const startRadius = EARTH_RADIUS + 0.8; // High orbit starting point
+      const endRadius = MOON_DISTANCE - FLYBY_RADIUS - 0.3;
+      const radius = startRadius + outT * (endRadius - startRadius);
       
-      // Closest approach at middle of flyby
-      const approachFactor = 1 - Math.sin(flybyT * Math.PI) * 0.3;
-      const currentRadius = FLYBY_CLEARANCE * approachFactor + MOON_RADIUS * 0.1;
+      // Gentle curve - approach Moon from slightly below
+      const angle = outT * 0.12; // Very gentle angle change
+      const y = Math.sin(outT * Math.PI * 0.6) * 0.3; // Slight arc above
       
-      const y = Math.sin(flybyT * Math.PI) * 0.15; // Slight vertical motion
+      points.push(new THREE.Vector3(radius * Math.cos(angle), y, radius * Math.sin(angle)));
       
-      points.push(new THREE.Vector3(
-        moonPos.x + Math.cos(flybyAngle) * currentRadius,
-        y,
-        Math.sin(flybyAngle) * currentRadius
-      ));
+    } else if (t < 0.60) {
+      // LUNAR FLYBY: The critical part - wide arc BEHIND the Moon
+      // Orion swings around the far side (positive X, away from Earth)
+      const flybyT = (t - 0.42) / 0.18;
+      const smoothFlybyT = easeInOut(flybyT);
+      
+      // Center of flyby arc is BEHIND the Moon (Moon is at X = MOON_DISTANCE)
+      const moonCenterX = MOON_DISTANCE;
+      
+      // Arc sweeps from approach side, around the back, to departure side
+      // Angle 0 = directly behind Moon (farthest from Earth)
+      // We go from ~-100° to ~+100° around the back
+      const startAngle = -Math.PI * 0.55; // Approaching from Earth-side
+      const endAngle = Math.PI * 0.55;    // Departing back toward Earth
+      const currentAngle = startAngle + smoothFlybyT * (endAngle - startAngle);
+      
+      // The flyby point is BEHIND the Moon (in +X direction from Moon center)
+      const flybyX = moonCenterX + Math.cos(currentAngle) * FLYBY_RADIUS;
+      const flybyZ = Math.sin(currentAngle) * FLYBY_RADIUS;
+      
+      // Gentle vertical motion during flyby
+      const y = Math.sin(smoothFlybyT * Math.PI) * 0.2;
+      
+      points.push(new THREE.Vector3(flybyX, y, flybyZ));
+      
     } else {
-      // Return transit: Moon back to Earth
-      const returnT = (t - 0.58) / 0.42;
+      // RETURN: Moon departure back to Earth
+      const returnT = smoothStep((t - 0.60) / 0.40);
       
-      // Start from behind Moon, curve back to Earth
-      const startRadius = MOON_DISTANCE + FLYBY_CLEARANCE * 0.5;
-      const endRadius = EARTH_RADIUS + 0.3;
+      // Smooth curve from behind Moon back to Earth
+      const startRadius = MOON_DISTANCE + FLYBY_RADIUS * 0.7;
+      const endRadius = EARTH_RADIUS + 0.6; // End in high orbit
       const radius = startRadius - returnT * (startRadius - endRadius);
       
-      // Angle sweeps from Moon position back toward Earth
-      const startAngle = 0.3;
-      const endAngle = -0.2;
-      const angle = startAngle + returnT * (endAngle - startAngle);
+      // Mirror the outbound angle
+      const angle = (1 - returnT) * 0.12;
+      // Arc below the plane on return (free-return trajectory characteristic)
+      const y = -Math.sin(returnT * Math.PI * 0.5) * 0.25;
       
-      // Arc below the orbital plane returning
-      const y = -Math.sin(returnT * Math.PI * 0.85) * 0.4;
-      
-      points.push(new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius));
+      points.push(new THREE.Vector3(radius * Math.cos(angle), y, -radius * Math.sin(angle)));
     }
   }
   
@@ -288,16 +282,16 @@ function GhostMoon() {
           />
         )}
       </mesh>
-      {/* Subtle glow ring around ghost moon - amber to match Artemis path */}
+      {/* Subtle glow ring around ghost moon */}
       <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.48, 0.52, 64]} />
-        <meshBasicMaterial color="#FFA500" transparent opacity={0.15} side={THREE.DoubleSide} />
+        <ringGeometry args={[0.48, 0.51, 64]} />
+        <meshBasicMaterial color="#E040FB" transparent opacity={0.12} side={THREE.DoubleSide} />
       </mesh>
       {/* Label */}
-      <Html position={[0, 0.75, 0]} center>
-        <div className="text-[10px] text-[#FFA500]/80 whitespace-nowrap bg-[rgba(0,10,20,0.9)] px-2 py-1.5 rounded pointer-events-none border border-[rgba(255,165,0,0.2)]">
-          <div className="text-[8px] text-muted-foreground/70 mb-0.5">Moon position at flyby</div>
-          <div className="text-[#FFA500]/70">CLOSEST APPROACH</div>
+      <Html position={[0, 0.7, 0]} center>
+        <div className="text-[9px] text-[#CE93D8]/90 whitespace-nowrap bg-[rgba(10,0,15,0.9)] px-2 py-1 rounded pointer-events-none border border-[rgba(224,64,251,0.15)]">
+          <div className="text-[7px] text-muted-foreground/60 mb-0.5">Flyby position</div>
+          <div className="text-[#E040FB]/70">6,513 km altitude</div>
         </div>
       </Html>
     </group>
@@ -324,79 +318,77 @@ function ArtemisTrajectory({ progress, showFullPath = true, isSimulating = false
     return trajectoryPoints.slice(progressIndex);
   }, [trajectoryPoints, progressIndex]);
 
-  // Amber/orange color for Artemis trajectory - distinct from MEO cyan (#00D4FF)
-  const ARTEMIS_PATH_COLOR = '#FF8C00'; // Dark orange - visible and distinct
-  const ARTEMIS_PATH_GLOW = '#FFA500';  // Orange for glow effects
+  // Unique magenta/purple color for Artemis - distinct from:
+  // LEO: #00FF41 (green), MEO: #00D4FF (cyan), GEO: #FFB300 (amber)
+  const ARTEMIS_COLOR = '#E040FB'; // Vibrant magenta/purple
+  const ARTEMIS_GLOW = '#CE93D8';  // Lighter purple for accents
 
   return (
     <group>
-      {/* Completed path - solid amber line (traveled portion) */}
+      {/* Completed path - thin solid line (traveled portion) */}
       {completedPoints.length > 1 && (
         <Line
           points={completedPoints}
-          color={ARTEMIS_PATH_COLOR}
-          lineWidth={2.5}
-          opacity={0.85}
+          color={ARTEMIS_COLOR}
+          lineWidth={1.8}
+          opacity={0.75}
           transparent
         />
       )}
       
-      {/* Remaining path - dashed line (planned portion - yet to cover) */}
+      {/* Remaining path - dashed line with more spacing (planned portion) */}
       {showFullPath && remainingPoints.length > 1 && (
         <Line
           points={remainingPoints}
-          color={ARTEMIS_PATH_COLOR}
-          lineWidth={1.5}
-          opacity={0.4}
+          color={ARTEMIS_COLOR}
+          lineWidth={1.2}
+          opacity={0.35}
           transparent
           dashed
-          dashSize={0.08}
-          dashScale={60}
-          gapSize={0.06}
+          dashSize={0.15}
+          dashScale={30}
+          gapSize={0.2}
         />
       )}
 
-      {/* Key waypoints */}
+      {/* Key waypoints - minimal markers */}
       {!isSimulating && (
         <>
-          {/* Launch point - Kennedy Space Center */}
+          {/* Start point - Earth orbit departure */}
           <group position={trajectoryPoints[0]}>
             <mesh>
-              <sphereGeometry args={[0.05, 12, 12]} />
-              <meshBasicMaterial color="#00FF41" transparent opacity={0.9} />
+              <sphereGeometry args={[0.04, 12, 12]} />
+              <meshBasicMaterial color={ARTEMIS_COLOR} transparent opacity={0.8} />
             </mesh>
-            <pointLight intensity={0.5} distance={1} color="#00FF41" />
-            <Html position={[0, 0.15, 0]} center>
-              <div className="text-[8px] text-[#00FF41] whitespace-nowrap bg-[rgba(0,10,15,0.9)] px-1.5 py-0.5 rounded pointer-events-none border border-[rgba(0,255,65,0.3)]">
-                LAUNCH
+            <Html position={[0, 0.12, 0]} center>
+              <div className="text-[7px] text-[#E040FB] whitespace-nowrap bg-[rgba(10,0,15,0.9)] px-1 py-0.5 rounded pointer-events-none border border-[rgba(224,64,251,0.25)]">
+                DEPART
               </div>
             </Html>
           </group>
           
-          {/* Lunar flyby point - closest approach */}
-          <group position={trajectoryPoints[Math.floor(trajectoryPoints.length * 0.52)]}>
+          {/* Lunar flyby point - behind Moon */}
+          <group position={trajectoryPoints[Math.floor(trajectoryPoints.length * 0.51)]}>
             <mesh>
-              <sphereGeometry args={[0.05, 12, 12]} />
-              <meshBasicMaterial color={ARTEMIS_PATH_GLOW} transparent opacity={0.9} />
+              <sphereGeometry args={[0.04, 12, 12]} />
+              <meshBasicMaterial color={ARTEMIS_COLOR} transparent opacity={0.9} />
             </mesh>
-            <pointLight intensity={0.5} distance={1} color={ARTEMIS_PATH_GLOW} />
-            <Html position={[0, 0.15, 0]} center>
-              <div className="text-[8px] text-[#FFA500] whitespace-nowrap bg-[rgba(0,10,15,0.9)] px-1.5 py-0.5 rounded pointer-events-none border border-[rgba(255,165,0,0.3)]">
+            <Html position={[0, 0.12, 0]} center>
+              <div className="text-[7px] text-[#E040FB] whitespace-nowrap bg-[rgba(10,0,15,0.9)] px-1 py-0.5 rounded pointer-events-none border border-[rgba(224,64,251,0.25)]">
                 FLYBY
               </div>
             </Html>
           </group>
           
-          {/* Return/Splashdown point - Pacific Ocean */}
+          {/* Return point - Earth orbit arrival */}
           <group position={trajectoryPoints[trajectoryPoints.length - 1]}>
             <mesh>
-              <sphereGeometry args={[0.05, 12, 12]} />
-              <meshBasicMaterial color="#FF4444" transparent opacity={0.9} />
+              <sphereGeometry args={[0.04, 12, 12]} />
+              <meshBasicMaterial color={ARTEMIS_COLOR} transparent opacity={0.8} />
             </mesh>
-            <pointLight intensity={0.5} distance={1} color="#FF4444" />
-            <Html position={[0, 0.15, 0]} center>
-              <div className="text-[8px] text-[#FF4444] whitespace-nowrap bg-[rgba(0,10,15,0.9)] px-1.5 py-0.5 rounded pointer-events-none border border-[rgba(255,68,68,0.3)]">
-                SPLASHDOWN
+            <Html position={[0, 0.12, 0]} center>
+              <div className="text-[7px] text-[#E040FB] whitespace-nowrap bg-[rgba(10,0,15,0.9)] px-1 py-0.5 rounded pointer-events-none border border-[rgba(224,64,251,0.25)]">
+                RETURN
               </div>
             </Html>
           </group>
@@ -487,28 +479,28 @@ export function ArtemisIISimulation({
       <group onClick={onOrionClick} style={{ cursor: 'pointer' }}>
         <OrionSpacecraft position={spacecraftPosition} scale={0.7} />
         
-        {/* Position indicator ring - amber to match trajectory */}
+        {/* Position indicator ring */}
         <group position={spacecraftPosition}>
           <mesh rotation={[Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.12, 0.15, 32]} />
-            <meshBasicMaterial color="#FFA500" transparent opacity={0.8} side={THREE.DoubleSide} />
+            <ringGeometry args={[0.1, 0.13, 32]} />
+            <meshBasicMaterial color="#E040FB" transparent opacity={0.7} side={THREE.DoubleSide} />
           </mesh>
-          <pointLight intensity={2.5} distance={4} color="#FFA500" />
+          <pointLight intensity={2} distance={3} color="#E040FB" />
           
           {/* Current status label */}
-          <Html position={[0, 0.5, 0]} center>
+          <Html position={[0, 0.45, 0]} center>
             <div 
-              className="text-[10px] whitespace-nowrap bg-[rgba(10,5,0,0.95)] border border-[rgba(255,165,0,0.6)] px-3 py-2 rounded pointer-events-auto cursor-pointer hover:border-[#FFA500] transition-colors"
+              className="text-[9px] whitespace-nowrap bg-[rgba(15,0,20,0.95)] border border-[rgba(224,64,251,0.5)] px-2.5 py-1.5 rounded pointer-events-auto cursor-pointer hover:border-[#E040FB] transition-colors"
               onClick={onOrionClick}
             >
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-1.5 mb-0.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-[#00FF41] animate-pulse" />
-                <span className="text-[#FFA500] font-bold">ORION</span>
-                <span className="text-[8px] text-[#00FF41]">LIVE</span>
+                <span className="text-[#E040FB] font-bold text-[10px]">ORION</span>
+                <span className="text-[7px] text-[#00FF41]">LIVE</span>
               </div>
-              <div className="text-[9px] text-muted-foreground">{currentPhase.phase}</div>
-              <div className="text-[9px] text-[#FFA500] font-mono">{velocity.toFixed(1)} km/s</div>
-              <div className="text-[8px] text-muted-foreground mt-1">
+              <div className="text-[8px] text-muted-foreground">{currentPhase.phase}</div>
+              <div className="text-[8px] text-[#CE93D8] font-mono">{velocity.toFixed(1)} km/s</div>
+              <div className="text-[7px] text-muted-foreground/80 mt-0.5">
                 T+{Math.floor(missionHours / 24)}d {Math.floor(missionHours % 24)}h
               </div>
             </div>
