@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { NavigationBar } from '@/components/navigation-bar';
 import { FilterPanel } from '@/components/filter-panel';
 import { SatelliteDetail } from '@/components/satellite-detail';
-
+import { ArtemisDetail } from '@/components/artemis-detail';
 
 import { SatelliteTooltip } from '@/components/satellite-tooltip';
 import { StatusBar } from '@/components/status-bar';
@@ -34,7 +34,13 @@ export default function Skyport() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadingText, setLoadingText] = useState('');
   const [showSupportModal, setShowSupportModal] = useState(false);
+  const [activeSimulations, setActiveSimulations] = useState<string[]>([]);
+  const [simElapsedHours, setSimElapsedHours] = useState(0);
+  const [showArtemisDetail, setShowArtemisDetail] = useState(false);
+  const [isArtemisPlayback, setIsArtemisPlayback] = useState(false);
   const engineReady = useRef(false);
+
+  const isArtemisActive = activeSimulations.includes('artemis-ii');
 
   const [filters, setFilters] = useState<Record<SatelliteCategory, boolean>>({
     WEATHER_SAT: true,
@@ -220,6 +226,33 @@ export default function Skyport() {
     setHoveredSatellite(satellite);
     setHoverPosition({ x, y });
   };
+
+  const handleSimulationToggle = (id: string) => {
+    setActiveSimulations(prev => {
+      const isActive = prev.includes(id);
+      if (isActive) {
+        if (id === 'artemis-ii') {
+          setShowArtemisDetail(false);
+          setIsArtemisPlayback(false);
+        }
+        return prev.filter(s => s !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
+
+  const handleOrionClick = () => {
+    // Toggle Artemis detail panel (same pattern as satellite click)
+    setShowArtemisDetail(prev => {
+      if (!prev) setSelectedSatellite(null); // close satellite panel
+      return !prev;
+    });
+  };
+
+  const handleSimElapsedUpdate = useCallback((hours: number) => {
+    setSimElapsedHours(hours);
+  }, []);
 
   // Loading screen
   if (isLoading) {
@@ -421,6 +454,8 @@ export default function Skyport() {
           });
         }}
         onSupportClick={() => setShowSupportModal(true)}
+        activeSimulations={activeSimulations}
+        onSimulationToggle={handleSimulationToggle}
       />
 
       {/* Main content area */}
@@ -428,16 +463,21 @@ export default function Skyport() {
         className={`fixed inset-0 pt-14 pb-10 transition-all duration-300 ${
           filterPanelOpen ? 'md:pl-72' : ''
         } ${
-          selectedSatellite ? 'md:pr-[380px]' : ''
+          (selectedSatellite || showArtemisDetail) ? 'md:pr-[380px]' : ''
         }`}
       >
         {/* 3D Earth Globe */}
-        <EarthGlobe 
+        <EarthGlobe
           satellites={filteredSatellites}
           selectedSatellite={selectedSatellite}
           onSatelliteClick={handleSatelliteClick}
           onSatelliteHover={handleSatelliteHover}
           filters={filters}
+          isSimulating={isArtemisActive}
+          onSimElapsedUpdate={handleSimElapsedUpdate}
+          onOrionClick={handleOrionClick}
+          isOrionSelected={showArtemisDetail}
+          isPlayback={isArtemisPlayback}
         />
       </main>
 
@@ -452,9 +492,18 @@ export default function Skyport() {
       />
 
       {/* Satellite Detail Panel */}
-      <SatelliteDetail 
+      <SatelliteDetail
         satellite={selectedSatellite}
         onClose={() => setSelectedSatellite(null)}
+      />
+
+      {/* Artemis II Detail Panel */}
+      <ArtemisDetail
+        isOpen={showArtemisDetail}
+        onClose={() => setShowArtemisDetail(false)}
+        elapsedHours={simElapsedHours}
+        isPlayback={isArtemisPlayback}
+        onPlaybackToggle={() => setIsArtemisPlayback(prev => !prev)}
       />
 
       {/* Hover Tooltip */}

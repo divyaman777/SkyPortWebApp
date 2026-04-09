@@ -9,12 +9,17 @@ interface EarthGlobeProps {
   onSatelliteClick: (satellite: Satellite) => void;
   onSatelliteHover: (satellite: Satellite | null, x: number, y: number) => void;
   filters: Record<SatelliteCategory, boolean>;
+  isSimulating?: boolean;
+  onSimElapsedUpdate?: (hours: number) => void;
+  onOrionClick?: () => void;
+  isOrionSelected?: boolean;
+  isPlayback?: boolean;
 }
 
 // Dynamic import with SSR disabled for React Three Fiber
 const EarthScene = dynamic(
   () => import('./earth-scene').then(mod => ({ default: mod.EarthScene })),
-  { 
+  {
     ssr: false,
     loading: () => (
       <div className="w-full h-full flex items-center justify-center">
@@ -27,12 +32,17 @@ const EarthScene = dynamic(
   }
 );
 
-export function EarthGlobe({ 
-  satellites, 
-  selectedSatellite, 
+export function EarthGlobe({
+  satellites,
+  selectedSatellite,
   onSatelliteClick,
   onSatelliteHover,
-  filters 
+  filters,
+  isSimulating,
+  onSimElapsedUpdate,
+  onOrionClick,
+  isOrionSelected,
+  isPlayback,
 }: EarthGlobeProps) {
   return (
     <div className="w-full h-full">
@@ -42,6 +52,11 @@ export function EarthGlobe({
         onSatelliteClick={onSatelliteClick}
         onSatelliteHover={onSatelliteHover}
         filters={filters}
+        isSimulating={isSimulating}
+        onSimElapsedUpdate={onSimElapsedUpdate}
+        onOrionClick={onOrionClick}
+        isOrionSelected={isOrionSelected}
+        isPlayback={isPlayback}
       />
     </div>
   );

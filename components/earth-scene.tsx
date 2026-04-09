@@ -8,6 +8,7 @@ import { Satellite, categoryColors, SatelliteCategory } from '@/lib/satellite-da
 import { computeECIPosition, computeOrbitPathECI, computeMoonPositionECI, computeMoonOrbitNormal, getJWSTPositionECI, getGMST } from '@/lib/satellite-engine';
 import { trackMoonClick, trackOrbitZoneClick } from '@/lib/analytics';
 import { registerPresence, subscribePresence, type ActiveUser } from '@/lib/presence';
+import { ArtemisSimulation } from '@/components/simulations/artemis-ii-simulation';
 
 // ─── GeoJSON Border Loading ─────────────────────────────────
 const WORLD_GEOJSON_URL = 'https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json';
@@ -88,6 +89,11 @@ interface EarthSceneProps {
   onSatelliteClick: (satellite: Satellite) => void;
   onSatelliteHover: (satellite: Satellite | null, x: number, y: number) => void;
   filters: Record<SatelliteCategory, boolean>;
+  isSimulating?: boolean;
+  onSimElapsedUpdate?: (hours: number) => void;
+  onOrionClick?: () => void;
+  isOrionSelected?: boolean;
+  isPlayback?: boolean;
 }
 
 // Convert lat/lon to 3D position on sphere
@@ -1544,7 +1550,12 @@ export function EarthScene({
   selectedSatellite,
   onSatelliteClick,
   onSatelliteHover,
-  filters
+  filters,
+  isSimulating,
+  onSimElapsedUpdate,
+  onOrionClick,
+  isOrionSelected,
+  isPlayback,
 }: EarthSceneProps) {
   const [moonSelected, setMoonSelected] = useState(false);
 
@@ -1596,6 +1607,15 @@ export function EarthScene({
           onSatelliteHover={onSatelliteHover}
           filters={filters}
         />
+        {isSimulating && onSimElapsedUpdate && (
+          <ArtemisSimulation
+            isSimulating={isSimulating}
+            onElapsedUpdate={onSimElapsedUpdate}
+            onOrionClick={onOrionClick}
+            isOrionSelected={isOrionSelected}
+            isPlayback={!!isPlayback}
+          />
+        )}
       </Suspense>
 
       <OrbitControls
