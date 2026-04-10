@@ -141,7 +141,7 @@ export function ArtemisDetail({ isOpen, onClose, elapsedHours, isPlayback, onPla
   const liveSource = getLiveDataSource();
 
   return (
-    <aside className="fixed top-14 right-0 bottom-10 w-[380px] z-40 glass-panel border-l border-[rgba(68,138,255,0.25)] overflow-y-auto scan-reveal">
+    <aside className="fixed top-14 right-0 bottom-10 w-full md:w-[380px] z-40 glass-panel border-l border-[rgba(68,138,255,0.25)] overflow-y-auto scan-reveal">
       <div className="p-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">

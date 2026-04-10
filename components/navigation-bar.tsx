@@ -59,45 +59,45 @@ export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle, onS
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-14 glass-panel border-b border-[rgba(0,255,65,0.2)]">
-      <div className="flex items-center justify-between h-full px-4">
+      <div className="flex items-center justify-between h-full px-2 sm:px-4 gap-2">
         {/* Logo */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-shrink-0">
           <div className="flex flex-col">
-            <span className="text-xl font-bold tracking-tight">
+            <span className="text-lg sm:text-xl font-bold tracking-tight">
               <span className="text-[#00FF41] glow-green">SKY</span>
               <span className="text-[#00D4FF] glow-cyan">PORT</span>
             </span>
             <span className="text-[10px] text-muted-foreground tracking-widest hidden sm:block">EVERY SATELLITE ABOVE YOU</span>
           </div>
-          <span className={`text-[#00FF41] ${cursorVisible ? 'opacity-100' : 'opacity-0'}`}>▮</span>
+          <span className={`text-[#00FF41] hidden sm:inline ${cursorVisible ? 'opacity-100' : 'opacity-0'}`}>▮</span>
         </div>
 
         {/* Right side controls */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-1.5 sm:gap-4 min-w-0">
           {/* Search */}
-          <div className="flex items-center gap-2 glass-panel px-3 py-1.5 rounded">
-            <span className="text-[#00FF41] text-sm">&gt;</span>
-            <span className="text-muted-foreground text-sm hidden sm:inline">search_satellite:</span>
-            <div className="relative">
+          <div className="flex items-center gap-1.5 sm:gap-2 glass-panel px-2 sm:px-3 py-1.5 rounded min-w-0">
+            <span className="text-[#00FF41] text-sm flex-shrink-0">&gt;</span>
+            <span className="text-muted-foreground text-sm hidden md:inline">search_satellite:</span>
+            <div className="relative min-w-0">
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="[____________________]"
-                className="bg-transparent border-none outline-none text-[#00D4FF] placeholder:text-muted-foreground w-32 sm:w-48 text-sm"
+                placeholder="[_________]"
+                className="bg-transparent border-none outline-none text-[#00D4FF] placeholder:text-muted-foreground w-20 sm:w-32 md:w-48 text-sm min-w-0"
               />
               {searchQuery === '' && (
-                <span className={`absolute right-0 top-0 text-[#00FF41] ${cursorVisible ? 'opacity-100' : 'opacity-0'}`}>|</span>
+                <span className={`absolute right-0 top-0 text-[#00FF41] hidden sm:inline ${cursorVisible ? 'opacity-100' : 'opacity-0'}`}>|</span>
               )}
             </div>
-            <Search className="w-4 h-4 text-muted-foreground" />
+            <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           </div>
 
           {/* Simulate dropdown */}
-          <div className="relative group/sim" ref={dropdownRef}>
+          <div className="relative group/sim flex-shrink-0" ref={dropdownRef}>
             <button
               onClick={() => setSimDropdownOpen(prev => !prev)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded transition-all text-sm ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded transition-all text-sm ${
                 activeCount > 0
                   ? 'bg-[rgba(0,212,255,0.1)] border border-[rgba(0,212,255,0.4)]'
                   : 'glass-panel hover:border-[#00D4FF]'
@@ -117,14 +117,14 @@ export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle, onS
                 </span>
               )}
               {simDropdownOpen
-                ? <ChevronUp className="w-3 h-3 text-[#00D4FF]" />
-                : <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                ? <ChevronUp className="w-3 h-3 text-[#00D4FF] hidden sm:inline" />
+                : <ChevronDown className="w-3 h-3 text-muted-foreground hidden sm:inline" />
               }
             </button>
 
             {/* Dropdown panel */}
             {simDropdownOpen && (
-              <div className="absolute right-0 top-full mt-2 w-80 glass-panel rounded-lg border border-[rgba(0,255,65,0.25)] overflow-hidden animate-in z-50">
+              <div className="absolute right-0 top-full mt-2 w-[calc(100vw-1rem)] max-w-80 glass-panel rounded-lg border border-[rgba(0,255,65,0.25)] overflow-hidden animate-in z-50">
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(0,255,65,0.15)]">
                   <div className="flex items-center gap-2 text-sm">
@@ -189,16 +189,16 @@ export function NavigationBar({ searchQuery, onSearchChange, onFilterToggle, onS
           {/* Filter toggle */}
           <button
             onClick={onFilterToggle}
-            className="flex items-center gap-2 glass-panel px-3 py-1.5 rounded hover:border-[#00FF41] transition-colors text-sm"
+            className="flex items-center gap-2 glass-panel px-2 sm:px-3 py-1.5 rounded hover:border-[#00FF41] transition-colors text-sm flex-shrink-0"
           >
             <SlidersHorizontal className="w-4 h-4 text-[#00FF41]" />
-            <span className="hidden sm:inline text-muted-foreground">[--filter]</span>
+            <span className="hidden md:inline text-muted-foreground">[--filter]</span>
           </button>
 
           {/* Support — coffee icon */}
           <button
             onClick={onSupportClick}
-            className="p-1.5 rounded transition-all duration-200 hover:bg-[rgba(255,180,0,0.15)]"
+            className="p-1.5 rounded transition-all duration-200 hover:bg-[rgba(255,180,0,0.15)] flex-shrink-0"
             title="Fuel the mission"
           >
             <Coffee className="w-4 h-4 text-[#FFB300]" />

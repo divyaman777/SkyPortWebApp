@@ -10,77 +10,22 @@ import { trackMoonClick, trackOrbitZoneClick } from '@/lib/analytics';
 import { registerPresence, subscribePresence, type ActiveUser } from '@/lib/presence';
 import { ArtemisSimulation } from '@/components/simulations/artemis-ii-simulation';
 
-// ─── GeoJSON Border Loading ─────────────────────────────────
-const WORLD_GEOJSON_URL = 'https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json';
-const INDIA_GEOJSON_URL = 'https://raw.githubusercontent.com/AbhinavSwami28/india-official-geojson/main/india-states-simplified.geojson';
+// ─── Pre-processed GeoJSON Borders ──────────────────────────
+// Borders are baked at build time by scripts/build-earth-borders.mjs
+// so they render instantly with the Earth — no runtime fetch.
+import borderData from '@/lib/earth-borders.json';
 
-// Convert GeoJSON geometry to 3D line arrays on the sphere
-function geoJSONToLines(geometry: { type: string; coordinates: number[][][] | number[][][][] }, radius: number): THREE.Vector3[][] {
-  const lines: THREE.Vector3[][] = [];
-
-  if (geometry.type === 'Polygon') {
-    for (const ring of geometry.coordinates as number[][][]) {
-      if (ring.length > 2) {
-        lines.push(ring.map(([lon, lat]) => latLonToVector3(lat, lon, radius)));
-      }
-    }
-  } else if (geometry.type === 'MultiPolygon') {
-    for (const polygon of geometry.coordinates as number[][][][]) {
-      for (const ring of polygon) {
-        if (ring.length > 2) {
-          lines.push(ring.map(([lon, lat]) => latLonToVector3(lat, lon, radius)));
-        }
-      }
-    }
-  }
-
-  return lines;
-}
-
-// Module-level cache so borders load only once across remounts
+// Module-level cache so we only convert lat/lon → Vector3 once
 let cachedBorderLines: THREE.Vector3[][] | null = null;
-let borderLoadPromise: Promise<THREE.Vector3[][]> | null = null;
 
-async function loadGeoJSONBorders(radius: number): Promise<THREE.Vector3[][]> {
+function getBorderLines(radius: number): THREE.Vector3[][] {
   if (cachedBorderLines) return cachedBorderLines;
-  if (borderLoadPromise) return borderLoadPromise;
-
-  borderLoadPromise = (async () => {
-    const [worldRes, indiaRes] = await Promise.all([
-      fetch(WORLD_GEOJSON_URL),
-      fetch(INDIA_GEOJSON_URL),
-    ]);
-
-    const worldData = await worldRes.json();
-    const indiaData = await indiaRes.json();
-
-    // Remove incorrect India and Pakistan from world data
-    const filteredFeatures = worldData.features.filter((f: { properties?: { name?: string } }) => {
-      const name = (f.properties?.name || '').toLowerCase();
-      return name !== 'india' && name !== 'pakistan';
-    });
-
-    // Add official India state boundaries
-    const indiaFeatures = indiaData.features.map((f: { properties?: Record<string, string>; [key: string]: unknown }) => ({
-      ...f,
-      properties: { ...f.properties, name: f.properties?.name || 'India' },
-    }));
-
-    const allFeatures = [...filteredFeatures, ...indiaFeatures];
-
-    const lines: THREE.Vector3[][] = [];
-    for (const feature of allFeatures) {
-      if (feature.geometry) {
-        lines.push(...geoJSONToLines(feature.geometry, radius));
-      }
-    }
-
-    cachedBorderLines = lines;
-    console.log(`[SKYPORT] Loaded ${lines.length} border segments from GeoJSON`);
-    return lines;
-  })();
-
-  return borderLoadPromise;
+  const lines: THREE.Vector3[][] = [];
+  for (const ring of borderData.rings as [number, number][][]) {
+    lines.push(ring.map(([lon, lat]) => latLonToVector3(lat, lon, radius)));
+  }
+  cachedBorderLines = lines;
+  return lines;
 }
 
 interface EarthSceneProps {
@@ -230,14 +175,8 @@ function generateOceanTexture(): HTMLCanvasElement {
 // Earth component with accurate GeoJSON country borders
 function Earth() {
   const earthRef = useRef<THREE.Group>(null);
-  const [borderLines, setBorderLines] = useState<THREE.Vector3[][]>([]);
-
-  // Fetch GeoJSON borders on mount
-  useEffect(() => {
-    loadGeoJSONBorders(2.01).then(setBorderLines).catch(err => {
-      console.warn('[SKYPORT] GeoJSON border load failed:', err);
-    });
-  }, []);
+  // Borders are pre-baked & bundled — computed synchronously, ready on first render
+  const borderLines = useMemo(() => getBorderLines(2.01), []);
 
   useFrame(() => {
     if (earthRef.current) {

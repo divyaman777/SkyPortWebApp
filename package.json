@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "fetch-artemis": "node scripts/fetch-artemis-trajectory.mjs"
+    "fetch-artemis": "node scripts/fetch-artemis-trajectory.mjs",
+    "build-borders": "node scripts/build-earth-borders.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

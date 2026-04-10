@@ -97,47 +97,56 @@ export function StatusBar({ overheadCount, onSupportClick }: StatusBarProps) {
 
   return (
     <footer className="fixed bottom-0 left-0 right-0 z-50 h-10 glass-panel border-t border-[rgba(0,255,65,0.2)]">
-      <div className="flex items-center justify-between h-full px-4">
+      <div className="flex items-center justify-between h-full px-2 sm:px-4 gap-2">
         {/* Left - Data sources */}
-        <div className="flex items-center gap-2 text-xs overflow-hidden">
-          <span className="text-[#00FF41]">&gt;</span>
-          <span className="text-muted-foreground hidden sm:inline">data:</span>
+        <div className="hidden sm:flex items-center gap-2 text-xs overflow-hidden min-w-0">
+          <span className="text-[#00FF41] flex-shrink-0">&gt;</span>
+          <span className="text-muted-foreground hidden md:inline">data:</span>
           <a href="https://celestrak.org" target="_blank" rel="noopener noreferrer" className="text-[#00D4FF] hover:text-[#00FF41] transition-colors whitespace-nowrap">Celestrak</a>
-          <span className="text-muted-foreground hidden sm:inline">·</span>
-          <span className="text-muted-foreground hidden sm:inline whitespace-nowrap">Open Notify</span>
           <span className="text-muted-foreground hidden md:inline">·</span>
-          <span className="text-muted-foreground hidden md:inline">NOAA</span>
-          <span className="text-muted-foreground hidden md:inline">·</span>
-          <span className="text-muted-foreground hidden md:inline">NASA</span>
-          <span className="text-muted-foreground">|</span>
+          <span className="text-muted-foreground hidden md:inline whitespace-nowrap">Open Notify</span>
+          <span className="text-muted-foreground hidden lg:inline">·</span>
+          <span className="text-muted-foreground hidden lg:inline">NOAA</span>
+          <span className="text-muted-foreground hidden lg:inline">·</span>
+          <span className="text-muted-foreground hidden lg:inline">NASA</span>
+          <span className="text-muted-foreground flex-shrink-0">|</span>
+          <span className="text-[#00FF41] flex-shrink-0">LIVE</span>
+          <span className={`text-[#00FF41] flex-shrink-0 ${cursorVisible ? 'opacity-100' : 'opacity-0'}`}>_</span>
+        </div>
+
+        {/* Mobile-only: just LIVE indicator on left */}
+        <div className="flex sm:hidden items-center gap-1.5 text-xs flex-shrink-0">
+          <span className="text-[#00FF41]">&gt;</span>
           <span className="text-[#00FF41]">LIVE</span>
           <span className={`text-[#00FF41] ${cursorVisible ? 'opacity-100' : 'opacity-0'}`}>_</span>
         </div>
 
         {/* Center - Mini world map */}
-        <div className="hidden md:block">
+        <div className="hidden lg:block">
           <MiniWorldMap />
         </div>
 
         {/* Right - Overhead count */}
-        <div className="flex items-center gap-4 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">overhead_now:</span>
+        <div className="flex items-center gap-1.5 sm:gap-4 text-xs min-w-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+            <span className="text-muted-foreground hidden sm:inline">overhead_now:</span>
             <span className="text-[#00FF41] font-vt323 text-base glow-green">{overheadCount}</span>
-            <span className="text-muted-foreground">objects</span>
+            <span className="text-muted-foreground hidden sm:inline">objects</span>
           </div>
-          <button className="flex items-center gap-2 px-2 py-1 glass-panel rounded hover:bg-[rgba(0,255,65,0.1)] transition-colors">
+          <button className="hidden md:flex items-center gap-2 px-2 py-1 glass-panel rounded hover:bg-[rgba(0,255,65,0.1)] transition-colors flex-shrink-0">
             <Eye className="w-3 h-3 text-[#00D4FF]" />
             <span className="text-foreground">[VIEW_LIST]</span>
           </button>
           <button
             onClick={onSupportClick}
-            className="group flex items-center gap-1.5 px-2 py-1 glass-panel rounded hover:border-[#FFB300] transition-all duration-200"
+            className="group flex items-center gap-1.5 px-2 py-1 glass-panel rounded hover:border-[#FFB300] transition-all duration-200 flex-shrink-0"
+            title="Fuel the mission"
           >
             <Rocket className="w-3 h-3 text-[#FFB300]" />
-            <span className="text-muted-foreground group-hover:text-[#FFB300] transition-colors">[</span>
-            <span className="text-[#FFB300] group-hover:glow-amber transition-all">FUEL_MISSION</span>
-            <span className="text-muted-foreground group-hover:text-[#FFB300] transition-colors">]</span>
+            <span className="text-muted-foreground group-hover:text-[#FFB300] transition-colors hidden sm:inline">[</span>
+            <span className="text-[#FFB300] group-hover:glow-amber transition-all hidden sm:inline">FUEL_MISSION</span>
+            <span className="text-muted-foreground group-hover:text-[#FFB300] transition-colors hidden sm:inline">]</span>
+            <span className="text-[#FFB300] sm:hidden">FUEL</span>
           </button>
         </div>
       </div>
