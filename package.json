@@ -5,10 +5,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "node scripts/fix-og-image-extension.mjs",
     "start": "next start",
     "lint": "eslint .",
     "fetch-artemis": "node scripts/fetch-artemis-trajectory.mjs",
-    "build-borders": "node scripts/build-earth-borders.mjs"
+    "build-borders": "node scripts/build-earth-borders.mjs",
+    "fix-og-image": "node scripts/fix-og-image-extension.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
