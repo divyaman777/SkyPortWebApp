@@ -108,7 +108,7 @@ export const metadata: Metadata = {
   },
   manifest: '/manifest.json',
   other: {
-    'google-site-verification': 'REPLACE_WITH_YOUR_VERIFICATION_CODE',
+    'google-site-verification': 'googleb898c58da5a91152',
     'msvalidate.01': 'REPLACE_WITH_BING_VERIFICATION_CODE',
   },
 }
