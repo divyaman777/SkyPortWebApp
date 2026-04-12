@@ -1,0 +1,34 @@
+{
+  "name": "Skyport — Live 3D Satellite Tracker",
+  "short_name": "Skyport",
+  "description": "Track every broadcasting satellite in orbit in real time. Live 3D tracker for the ISS, Hubble, JWST, GOES, Landsat, Tiangong, and the Artemis II lunar mission — with NASA data, weather imagery, and radio feeds.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0a0a0f",
+  "background_color": "#0a0a0f",
+  "lang": "en-US",
+  "dir": "ltr",
+  "categories": ["education", "science", "navigation", "utilities"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-dark-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

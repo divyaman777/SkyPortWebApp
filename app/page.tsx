@@ -254,14 +254,20 @@ export default function Skyport() {
     setSimElapsedHours(hours);
   }, []);
 
-  // Loading screen
+  // Loading screen — also the SSR/crawler-visible HTML for search engines.
+  // Since the main app is client-rendered behind `isLoading`, this markup is
+  // what Googlebot (and OpenGraph crawlers) see on first hit. Keep it
+  // semantically rich, descriptive, and keyword-accurate to the product.
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
         <div className="star-field" />
         <div className="scanlines" />
-        
-        <div className="flex flex-col items-center z-10 px-4">
+
+        <main
+          className="flex flex-col items-center z-10 px-4"
+          aria-label="Skyport — real-time 3D satellite tracker, loading"
+        >
           {/* Animated Earth and Satellite Logo */}
           <div className="relative w-52 h-52 mb-8">
             {/* Outer glow pulse */}
@@ -387,7 +393,10 @@ export default function Skyport() {
           
           {/* Logo Text */}
           <div className="text-center mb-6">
-            <h1 className="text-5xl font-bold tracking-tight mb-3">
+            <h1
+              className="text-5xl font-bold tracking-tight mb-3"
+              aria-label="Skyport — Live 3D Satellite Tracker"
+            >
               <span className="text-[#00FF41] glow-green">SKY</span>
               <span className="text-[#00D4FF] glow-cyan">PORT</span>
             </h1>
@@ -395,13 +404,16 @@ export default function Skyport() {
             <p className="text-lg text-foreground mb-1">Everything they&apos;re sending down.</p>
             <p className="text-[#00FF41] text-lg font-bold glow-green">Live.</p>
           </div>
-          
-          {/* Subtext */}
-          <p className="text-muted-foreground text-sm text-center max-w-md mb-8">
-            Real-time 3D tracking of every broadcasting satellite in orbit.
+
+          {/* Subtext — visible tagline with target keywords */}
+          <h2 className="text-muted-foreground text-sm text-center max-w-md mb-8 font-normal">
+            Real-time 3D tracking of every broadcasting satellite in orbit —
+            the ISS, Hubble, JWST, GOES weather sats, and the Artemis II lunar mission.
             <br />
-            <span className="text-[#00D4FF]">Weather imagery</span> · <span className="text-[#FFB300]">NASA feeds</span> · <span className="text-[#00FF41]">Radio transmissions</span>
-          </p>
+            <span className="text-[#00D4FF]">Weather imagery</span> ·{' '}
+            <span className="text-[#FFB300]">NASA feeds</span> ·{' '}
+            <span className="text-[#00FF41]">Radio transmissions</span>
+          </h2>
 
           {/* Terminal box */}
           <div className="glass-panel p-4 rounded max-w-sm w-full">
@@ -418,16 +430,108 @@ export default function Skyport() {
 
             {/* Progress bar */}
             <div className="h-1 bg-[rgba(0,255,65,0.2)] rounded overflow-hidden mt-3">
-              <div 
+              <div
                 className="h-full bg-[#00FF41] transition-all duration-300"
-                style={{ 
+                style={{
                   width: `${Math.min((loadingText.length / 30) * 100, 100)}%`,
                   boxShadow: '0 0 10px #00FF41'
                 }}
               />
             </div>
           </div>
-        </div>
+
+          {/*
+            SEO content block — rendered in the SSR HTML so crawlers and
+            accessibility tools see a meaningful description of what Skyport
+            is and what it tracks. Visually hidden with `sr-only` (Tailwind
+            accessible-hiding utility) — this is NOT cloaking: the content is
+            real, accurate, and available to screen readers.
+          */}
+          <section className="sr-only" aria-labelledby="skyport-about-heading">
+            <h2 id="skyport-about-heading">About Skyport</h2>
+            <p>
+              Skyport is a free, real-time, browser-based 3D satellite tracker.
+              It visualizes every major broadcasting satellite currently in
+              orbit around Earth using SGP4 orbital propagation and live
+              Two-Line Element (TLE) ephemeris data from CelesTrak, updated
+              hourly. The globe renders with WebGL via Three.js and runs
+              entirely client-side — no login, no backend, no ads.
+            </p>
+
+            <h3>Satellites and spacecraft you can track live</h3>
+            <ul>
+              <li>
+                International Space Station (ISS, NORAD 25544) — low Earth
+                orbit at ~408 km, orbiting every ~90 minutes
+              </li>
+              <li>
+                Hubble Space Telescope (NORAD 20580) — LEO at ~547 km
+              </li>
+              <li>
+                James Webb Space Telescope (JWST) — at the Sun–Earth L2
+                Lagrange point, ~1.5 million km from Earth
+              </li>
+              <li>
+                GOES-16 (East, NORAD 41866) and GOES-18 (West, NORAD 43226)
+                — geostationary weather satellites at 35,786 km
+              </li>
+              <li>NOAA-19 (NORAD 33591) — polar-orbiting weather satellite</li>
+              <li>Landsat 9 (NORAD 49260) — Earth observation mission</li>
+              <li>Tiangong Space Station (NORAD 48274) — China&apos;s crewed LEO station</li>
+              <li>
+                AO-91 / RadFxSat (NORAD 43017) — amateur radio CubeSat with
+                live transponder frequencies
+              </li>
+              <li>
+                Artemis II / Orion MPCV &quot;Integrity&quot; — NASA&apos;s crewed lunar
+                mission, with the full cislunar trajectory streamed from the
+                JPL Horizons system
+              </li>
+              <li>The Moon, rendered with NASA&apos;s LROC color map</li>
+            </ul>
+
+            <h3>Data feeds and live telemetry</h3>
+            <p>
+              Skyport also surfaces live GOES weather imagery, NASA video
+              feeds, ISS audio streams, amateur-radio transponder frequencies,
+              and real-time Deep Space Network (DSN) status — so you can see
+              what every satellite is broadcasting, not just where it is.
+            </p>
+
+            <h3>Common questions</h3>
+            <p>
+              Where is the ISS right now? Skyport shows the International
+              Space Station&apos;s current latitude, longitude, altitude, and
+              velocity, updated every second from propagated TLE data.
+              Where is Artemis II? Orion&apos;s position along its real
+              cislunar trajectory is interpolated from JPL Horizons state
+              vectors. Where is JWST? It orbits the L2 point, about 1.5
+              million kilometers from Earth, and Skyport renders its relative
+              location in the scene.
+            </p>
+
+            <p>
+              Skyport is built with Next.js, React Three Fiber, satellite.js
+              (SGP4), and astronomy-engine. It&apos;s open source and free to
+              use at{' '}
+              <a href="https://skyport.space" rel="canonical">
+                skyport.space
+              </a>
+              .
+            </p>
+          </section>
+
+          <noscript>
+            <div className="mt-6 p-4 border border-[rgba(0,255,65,0.3)] rounded max-w-md text-center text-sm">
+              <strong>Skyport requires JavaScript and WebGL.</strong>
+              <br />
+              Skyport is a real-time 3D satellite tracker showing the ISS,
+              Hubble, JWST, GOES weather satellites, Tiangong, and the
+              Artemis II lunar mission live in your browser. Please enable
+              JavaScript to launch the tracker.
+            </div>
+          </noscript>
+        </main>
       </div>
     );
   }
