@@ -1,11 +1,17 @@
 {
+  "id": "/",
   "name": "Skyport — Every Satellite Above You",
   "short_name": "Skyport",
   "description": "Real-time 3D satellite tracker — ISS, Hubble, JWST, Starlink, Artemis II, and more.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#0a0a0f",
   "theme_color": "#0a0a0f",
+  "categories": ["education", "science", "utilities"],
+  "lang": "en",
+  "dir": "ltr",
   "icons": [
     {
       "src": "/icon-light-32x32.png",
@@ -20,7 +26,8 @@
     {
       "src": "/icon.svg",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ]
 }

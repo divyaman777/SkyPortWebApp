@@ -123,7 +123,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const jsonLd = {
+  const webAppJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'WebApplication',
     name: 'Skyport',
@@ -133,8 +133,37 @@ export default function RootLayout({
     operatingSystem: 'Any',
     browserRequirements: 'Requires WebGL',
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-    author: { '@type': 'Person', name: 'Divyaman' },
+    author: { '@type': 'Person', name: 'Divyaman', url: SITE_URL },
+    creator: { '@type': 'Person', name: 'Divyaman' },
     keywords: 'satellite tracker, ISS tracker, Starlink, Artemis II, 3D, real-time, space',
+    image: `${SITE_URL}/og-image.png`,
+    screenshot: `${SITE_URL}/og-image.png`,
+    featureList: [
+      'Real-time satellite positions via SGP4 propagation',
+      '10 hand-modelled 3D spacecraft',
+      'Starlink constellation simulation (1,584 satellites)',
+      'Live Artemis II mission tracking',
+      'GOES weather satellite imagery',
+      'ISS live audio streams',
+      'Deep Space Network status',
+      'Amateur radio transponder frequencies',
+    ],
+    softwareVersion: '1.0.0',
+    inLanguage: 'en',
+  };
+
+  const webSiteJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'Skyport',
+    url: SITE_URL,
+    description: DESCRIPTION,
+    inLanguage: 'en',
+    publisher: {
+      '@type': 'Person',
+      name: 'Divyaman',
+      url: SITE_URL,
+    },
   };
 
   const faqJsonLd = {
@@ -195,7 +224,11 @@ export default function RootLayout({
       <body className={`${jetbrainsMono.variable} ${vt323.variable} ${shareTechMono.variable} font-mono antialiased`}>
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(webSiteJsonLd) }}
         />
         <script
           type="application/ld+json"
