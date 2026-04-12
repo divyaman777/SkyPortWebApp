@@ -9,6 +9,8 @@ import { computeECIPosition, computeOrbitPathECI, computeMoonPositionECI, comput
 import { trackMoonClick, trackOrbitZoneClick } from '@/lib/analytics';
 import { registerPresence, subscribePresence, type ActiveUser } from '@/lib/presence';
 import { ArtemisSimulation } from '@/components/simulations/artemis-ii-simulation';
+import { StarlinkSimulation } from '@/components/simulations/starlink-simulation';
+import { type SelectedStarlinkSat } from '@/lib/starlink-data';
 
 // ─── Pre-processed GeoJSON Borders ──────────────────────────
 // Borders are baked at build time by scripts/build-earth-borders.mjs
@@ -39,6 +41,9 @@ interface EarthSceneProps {
   onOrionClick?: () => void;
   isOrionSelected?: boolean;
   isPlayback?: boolean;
+  isStarlinkActive?: boolean;
+  onStarlinkSelect?: (sat: SelectedStarlinkSat | null) => void;
+  selectedStarlink?: SelectedStarlinkSat | null;
 }
 
 // Convert lat/lon to 3D position on sphere
@@ -1495,11 +1500,15 @@ export function EarthScene({
   onOrionClick,
   isOrionSelected,
   isPlayback,
+  isStarlinkActive,
+  onStarlinkSelect,
+  selectedStarlink,
 }: EarthSceneProps) {
   const [moonSelected, setMoonSelected] = useState(false);
 
   const handleSatelliteClick = (satellite: Satellite) => {
     setMoonSelected(false);
+    onStarlinkSelect?.(null);
     onSatelliteClick(satellite);
   };
 
@@ -1512,6 +1521,7 @@ export function EarthScene({
 
   const handleBackgroundClick = () => {
     setMoonSelected(false);
+    onStarlinkSelect?.(null);
     if (selectedSatellite) {
       onSatelliteClick(selectedSatellite);
     }
@@ -1554,6 +1564,9 @@ export function EarthScene({
             isOrionSelected={isOrionSelected}
             isPlayback={!!isPlayback}
           />
+        )}
+        {isStarlinkActive && (
+          <StarlinkSimulation isSimulating={isStarlinkActive} onStarlinkSelect={onStarlinkSelect} selectedSat={selectedStarlink} />
         )}
       </Suspense>
 

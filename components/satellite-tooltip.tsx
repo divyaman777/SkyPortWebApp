@@ -6,21 +6,23 @@ interface SatelliteTooltipProps {
   satellite: Satellite | null;
   x: number;
   y: number;
+  onClick?: (satellite: Satellite) => void;
 }
 
-export function SatelliteTooltip({ satellite, x, y }: SatelliteTooltipProps) {
+export function SatelliteTooltip({ satellite, x, y, onClick }: SatelliteTooltipProps) {
   if (!satellite) return null;
 
   const color = categoryColors[satellite.category];
 
   return (
-    <div 
-      className="fixed z-[100] glass-panel p-2 rounded text-xs pointer-events-none scan-reveal"
-      style={{ 
-        left: x + 15, 
+    <div
+      className={`fixed z-[100] glass-panel p-2 rounded text-xs scan-reveal ${onClick ? 'cursor-pointer pointer-events-auto hover:brightness-125' : 'pointer-events-none'}`}
+      style={{
+        left: x + 15,
         top: y + 15,
         borderColor: color,
       }}
+      onClick={() => onClick?.(satellite)}
     >
       <div className="space-y-1 min-w-[140px]">
         <div className="flex items-center gap-2 border-b border-[rgba(0,255,65,0.2)] pb-1 mb-1">

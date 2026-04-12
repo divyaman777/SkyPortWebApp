@@ -5,6 +5,8 @@ import { NavigationBar } from '@/components/navigation-bar';
 import { FilterPanel } from '@/components/filter-panel';
 import { SatelliteDetail } from '@/components/satellite-detail';
 import { ArtemisDetail } from '@/components/artemis-detail';
+import { StarlinkDetail } from '@/components/starlink-detail';
+import { type SelectedStarlinkSat } from '@/lib/starlink-data';
 
 import { SatelliteTooltip } from '@/components/satellite-tooltip';
 import { StatusBar } from '@/components/status-bar';
@@ -38,9 +40,11 @@ export default function Skyport() {
   const [simElapsedHours, setSimElapsedHours] = useState(0);
   const [showArtemisDetail, setShowArtemisDetail] = useState(false);
   const [isArtemisPlayback, setIsArtemisPlayback] = useState(false);
+  const [selectedStarlink, setSelectedStarlink] = useState<SelectedStarlinkSat | null>(null);
   const engineReady = useRef(false);
 
   const isArtemisActive = activeSimulations.includes('artemis-ii');
+  const isStarlinkActive = activeSimulations.includes('starlink');
 
   const [filters, setFilters] = useState<Record<SatelliteCategory, boolean>>({
     WEATHER_SAT: true,
@@ -213,6 +217,7 @@ export default function Skyport() {
   };
 
   const handleSatelliteClick = (satellite: Satellite) => {
+    setSelectedStarlink(null); // close starlink panel
     if (selectedSatellite?.id === satellite.id) {
       setSelectedSatellite(null);
     } else {
@@ -243,12 +248,20 @@ export default function Skyport() {
   };
 
   const handleOrionClick = () => {
-    // Toggle Artemis detail panel (same pattern as satellite click)
+    setSelectedStarlink(null); // close starlink panel
     setShowArtemisDetail(prev => {
       if (!prev) setSelectedSatellite(null); // close satellite panel
       return !prev;
     });
   };
+
+  const handleStarlinkSelect = useCallback((sat: SelectedStarlinkSat | null) => {
+    setSelectedStarlink(sat);
+    if (sat) {
+      setSelectedSatellite(null);
+      setShowArtemisDetail(false);
+    }
+  }, []);
 
   const handleSimElapsedUpdate = useCallback((hours: number) => {
     setSimElapsedHours(hours);
@@ -463,7 +476,7 @@ export default function Skyport() {
         className={`fixed inset-0 pt-14 pb-10 transition-all duration-300 ${
           filterPanelOpen ? 'md:pl-72' : ''
         } ${
-          (selectedSatellite || showArtemisDetail) ? 'md:pr-[380px]' : ''
+          (selectedSatellite || showArtemisDetail || selectedStarlink) ? 'md:pr-[380px]' : ''
         }`}
       >
         {/* 3D Earth Globe */}
@@ -478,6 +491,9 @@ export default function Skyport() {
           onOrionClick={handleOrionClick}
           isOrionSelected={showArtemisDetail}
           isPlayback={isArtemisPlayback}
+          isStarlinkActive={isStarlinkActive}
+          onStarlinkSelect={handleStarlinkSelect}
+          selectedStarlink={selectedStarlink}
         />
       </main>
 
@@ -506,11 +522,18 @@ export default function Skyport() {
         onPlaybackToggle={() => setIsArtemisPlayback(prev => !prev)}
       />
 
+      {/* Starlink Detail Panel */}
+      <StarlinkDetail
+        satellite={selectedStarlink}
+        onClose={() => setSelectedStarlink(null)}
+      />
+
       {/* Hover Tooltip */}
-      <SatelliteTooltip 
+      <SatelliteTooltip
         satellite={hoveredSatellite}
         x={hoverPosition.x}
         y={hoverPosition.y}
+        onClick={handleSatelliteClick}
       />
 
       {/* Status Bar */}

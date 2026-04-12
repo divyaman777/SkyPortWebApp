@@ -19,6 +19,13 @@ const SIMULATIONS: SimulationOption[] = [
     agency: 'NASA',
     status: 'ACTIVE',
   },
+  {
+    id: 'starlink',
+    name: 'Starlink',
+    description: '1,584 satellites — inter-satellite laser mesh network',
+    agency: 'SpaceX',
+    status: 'ACTIVE',
+  },
 ];
 
 interface NavigationBarProps {

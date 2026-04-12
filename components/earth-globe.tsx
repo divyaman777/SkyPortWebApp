@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { Satellite, SatelliteCategory } from '@/lib/satellite-data';
+import { type SelectedStarlinkSat } from '@/lib/starlink-data';
 
 interface EarthGlobeProps {
   satellites: Satellite[];
@@ -14,6 +15,9 @@ interface EarthGlobeProps {
   onOrionClick?: () => void;
   isOrionSelected?: boolean;
   isPlayback?: boolean;
+  isStarlinkActive?: boolean;
+  onStarlinkSelect?: (sat: SelectedStarlinkSat | null) => void;
+  selectedStarlink?: SelectedStarlinkSat | null;
 }
 
 // Dynamic import with SSR disabled for React Three Fiber
@@ -43,6 +47,9 @@ export function EarthGlobe({
   onOrionClick,
   isOrionSelected,
   isPlayback,
+  isStarlinkActive,
+  onStarlinkSelect,
+  selectedStarlink,
 }: EarthGlobeProps) {
   return (
     <div className="w-full h-full">
@@ -57,6 +64,9 @@ export function EarthGlobe({
         onOrionClick={onOrionClick}
         isOrionSelected={isOrionSelected}
         isPlayback={isPlayback}
+        isStarlinkActive={isStarlinkActive}
+        onStarlinkSelect={onStarlinkSelect}
+        selectedStarlink={selectedStarlink}
       />
     </div>
   );
