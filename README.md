@@ -35,8 +35,9 @@ It runs entirely in the browser. No backend, no login, no ads. Just orbital mech
 ## `>` features
 
 - **Live satellite positions** — SGP4 propagation from real TLE data (updated hourly from CelesTrak)
-- **9 hand-modelled 3D spacecraft** — ISS, Hubble, GOES, NOAA, Landsat 9, JWST, Tiangong, AO-91 CubeSat, and Orion MPCV — built from primitives in React Three Fiber
+- **10 hand-modelled 3D spacecraft** — ISS, Hubble, GOES, NOAA, Landsat 9, JWST, Tiangong, AO-91 CubeSat, Orion MPCV, and Starlink v2 Mini — built from primitives in React Three Fiber
 - **Live Artemis II tracking** — Real trajectory data straight from NASA's JPL Horizons system
+- **Starlink constellation simulation** — 1,584 satellites (Shell 1, Walker Delta 53:1584/72/45) with Keplerian propagation, inter-satellite laser links, clickable detail panels with real specs from FCC filings
 - **Data feeds** — GOES weather imagery, ISS audio streams, amateur radio transponder frequencies, live DSN status
 - **User presence** — See other visitors as tiny dots on the globe (Firebase Realtime Database)
 - **Terminal aesthetic** — Green-on-black, scanlines, VT323 readouts, because everything is better with CRT vibes
@@ -57,7 +58,9 @@ It runs entirely in the browser. No backend, no login, no ads. Just orbital mech
 | `tiangong` | Tiangong Space Station | 48274 | SPACE_STATION | LEO 390 km |
 | `artemis-ii` | Orion MPCV (Integrity) | 68538 | MISSION | Cislunar trajectory |
 
-Plus the Moon, rendered with NASA's LROC color map.
+| `starlink` | Starlink Shell 1 | — | SIMULATION | LEO 550 km (×1,584) |
+
+Plus the Moon (NASA LROC color map) and 1,584 Starlink satellites with inter-satellite laser links.
 
 ## `>` tech stack
 
@@ -96,6 +99,18 @@ At build time, `scripts/fetch-artemis-trajectory.mjs` queries the JPL Horizons A
 ...at 15-minute intervals across the mission window. The ECI J2000 coordinates are projected onto a **fixed Earth-Moon reference frame** (ê_x = Earth→Moon at flyby, ê_z = orbit normal), scaled so the Moon sits at scene position (20, 0, 0). Pre-TLI elliptical orbits are trimmed, and points near the Moon are clamped to keep the visible trajectory outside the (visually oversized) Moon sphere.
 
 The result is saved as `public/artemis-live-trajectory.json` and loaded at runtime. Orion's current position is interpolated from real mission elapsed time.
+
+</details>
+
+<details>
+<summary><b>Starlink constellation simulation (click to expand)</b></summary>
+
+1. **Walker Delta 53:1584/72/45** — 72 orbital planes, 22 sats each, phasing parameter F=45 (from observational data, arxiv 2603.25835)
+2. All 1,584 satellites use **Keplerian circular orbit propagation** — mean anomaly + RAAN rotation + inclination tilt, converted from ECI to Three.js coordinates
+3. The inter-plane phase offset `(planeIdx × F / totalSats) × 2pi` prevents satellites from colliding at orbital crossing points
+4. **InstancedMesh** renders all 1,584 satellites in a single draw call, with custom distance-based raycasting for click/hover
+5. **3,168 laser links** (1,584 intra-plane + 1,584 cross-plane) are drawn as `LineDashedMaterial` with positions updated per frame via shared `Float32Array`
+6. Satellite specs in the detail panel come from FCC filings (SAT-MOD-20190830-00087) and SpaceX public data
 
 </details>
 
@@ -147,14 +162,17 @@ components/
 ├── filter-panel.tsx        # Category toggles
 ├── satellite-detail.tsx    # Right panel — orbital data + feeds
 ├── artemis-detail.tsx      # Right panel — Artemis II mission telemetry
+├── starlink-detail.tsx     # Right panel — Starlink satellite specs (FCC data)
 ├── status-bar.tsx          # Bottom bar — data sources, overhead count, fuel button
 └── simulations/
-    └── artemis-ii-simulation.tsx  # Orion + ghost moon + trajectory rendering
+    ├── artemis-ii-simulation.tsx   # Orion + ghost moon + trajectory rendering
+    └── starlink-simulation.tsx     # 1,584 sats + laser links + orbit rings
 
 lib/
 ├── satellite-engine.ts     # TLE fetching, SGP4, ECI↔Three.js conversion
 ├── satellite-registry.ts   # 10 satellites with metadata, signals, data feeds
 ├── artemis-data.ts         # Mission constants, phases, crew, trajectory helpers
+├── starlink-data.ts        # Walker Delta constellation config, Keplerian propagation, laser links
 ├── earth-borders.json      # Pre-baked GeoJSON borders (do not edit)
 └── presence.ts             # Firebase Realtime DB user presence
 
@@ -185,10 +203,10 @@ Because `next.config.mjs` has `output: 'export'`, there are no API routes — ev
 ## `>` roadmap
 
 - [x] Live Artemis II tracking with JPL Horizons data
-- [x] 9 hand-built 3D spacecraft models
+- [x] 10 hand-built 3D spacecraft models
 - [x] User presence dots on the globe
 - [x] Mobile-responsive layout
-- [ ] **Starlink constellation simulation** (coming soon)
+- [x] Starlink constellation simulation (1,584 sats, laser links, Walker Delta phasing)
 - [ ] Pass prediction for your location
 - [ ] Launch countdown integration
 - [ ] More missions: Europa Clipper, Psyche, JUICE
@@ -197,7 +215,7 @@ Because `next.config.mjs` has `output: 'export'`, there are no API routes — ev
 
 Every spacecraft in Skyport is **hand-built from Three.js primitives** — no imported GLTF files, no external models. Each one is a composition of spheres, cylinders, boxes, and cones arranged to match the real thing as closely as a real-time 3D scene allows.
 
-All models live in `components/earth-scene.tsx` (and `components/simulations/artemis-ii-simulation.tsx` for Orion). Open any `*Model()` function — each one is under 100 lines of JSX primitives.
+All models live in `components/earth-scene.tsx`, `components/simulations/artemis-ii-simulation.tsx` (Orion), and `components/simulations/starlink-simulation.tsx` (Starlink). Open any `*Model()` or `createStarlinkGeometry()` function — each one is under 100 lines of JSX primitives.
 
 - **ISS** — truss backbone + pressurized modules + 8 solar arrays
 - **Hubble** — cylindrical body + aperture door + twin solar wings
@@ -208,6 +226,7 @@ All models live in `components/earth-scene.tsx` (and `components/simulations/art
 - **Tiangong** — Tianhe core + Wentian + Mengtian modules
 - **AO-91 CubeSat** — 1U chassis + deployable antennas
 - **Orion MPCV** — crew module + ESM + 4 X-config solar wings + AJ10-190 nozzle
+- **Starlink v2 Mini** — thin flat bus (4.1m x 2.7m) + two deployable solar wings (~30m span) + phased array antenna
 
 ## `>` data sources
 
@@ -217,6 +236,7 @@ All models live in `components/earth-scene.tsx` (and `components/simulations/art
 - **Moon texture** — NASA LROC 2K color map
 - **Country borders** — [world.geo.json](https://github.com/johan/world.geo.json)
 - **India state boundaries** — [india-official-geojson](https://github.com/AbhinavSwami28/india-official-geojson)
+- **Starlink constellation** — [FCC SAT-MOD-20190830-00087](https://fcc.report/IBFS/SAT-MOD-20190830-00087/1877764.pdf), Walker phasing from [arxiv 2603.25835](https://arxiv.org/abs/2603.25835)
 - **Weather imagery** — NOAA GOES-16/18 public feeds
 - **Deep Space Network** — [eyes.nasa.gov/dsn](https://eyes.nasa.gov/dsn/dsn.html)
 
