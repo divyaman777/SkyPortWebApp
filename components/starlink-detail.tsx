@@ -142,6 +142,11 @@ export function StarlinkDetail({ satellite, onClose }: StarlinkDetailProps) {
                 <span className="text-muted-foreground text-xs">GATEWAY:</span>
                 <span className="text-foreground text-xs">{S.gatewayBand}</span>
               </div>
+              <div className="flex items-center gap-2">
+                <Zap className="w-3 h-3 text-[#FFB300]" />
+                <span className="text-muted-foreground text-xs">BACKHAUL:</span>
+                <span className="text-foreground text-xs">{S.eBand}</span>
+              </div>
             </div>
           </div>
         </div>

@@ -4,8 +4,9 @@
  * Starlink constellation orbital parameters, Keplerian propagation,
  * and laser link topology for the 3D simulation.
  *
- * Shell 1 (primary): 550 km, 53° inclination, 22 planes × 72 sats = 1,584 total
- * Source: FCC filings + SpaceX public data
+ * Shell 1 (primary): 550 km, 53° inclination, 72 planes × 22 sats = 1,584 total
+ * Walker Delta constellation: 53:1584/72/45
+ * Source: FCC filings (SAT-MOD-20190830-00087), observational data (arxiv 2603.25835)
  */
 
 // ─── Constellation Constants ────────────────────────────────
@@ -16,9 +17,17 @@ export const STARLINK_LINK_COLOR = '#4FC3F7'; // Light blue for laser links
 /** Shell 1: the primary operational shell */
 export const ALTITUDE_KM = 550;
 export const INCLINATION_DEG = 53;
-export const NUM_PLANES = 22;
-export const SATS_PER_PLANE = 72;
+export const NUM_PLANES = 72;
+export const SATS_PER_PLANE = 22;
 export const TOTAL_SATS = NUM_PLANES * SATS_PER_PLANE; // 1,584
+
+/**
+ * Walker Delta phasing parameter F=45.
+ * Adds a progressive phase offset between adjacent planes so satellites
+ * from crossing orbital planes never arrive at the same point simultaneously.
+ * Source: observational study arxiv 2603.25835 (March 2026)
+ */
+const WALKER_F = 45;
 
 /** Physical constants */
 const MU_EARTH = 398600.4418; // km³/s² — Earth gravitational parameter
@@ -60,8 +69,10 @@ export const ORBITAL_ELEMENTS: SatOrbitalElements[] = (() => {
     const raan = (p / NUM_PLANES) * 2 * Math.PI;
     const cosR = Math.cos(raan);
     const sinR = Math.sin(raan);
+    // Inter-plane phase offset from Walker F parameter
+    const interPlaneOffset = (p * WALKER_F / TOTAL_SATS) * 2 * Math.PI;
     for (let s = 0; s < SATS_PER_PLANE; s++) {
-      const phaseOffset = (s / SATS_PER_PLANE) * 2 * Math.PI;
+      const phaseOffset = (s / SATS_PER_PLANE) * 2 * Math.PI + interPlaneOffset;
       elements.push({
         planeIdx: p,
         satIdx: s,
@@ -198,12 +209,12 @@ export const STARLINK_SPECS = {
   shell: 'Shell 1 (Gen1)',
   variant: 'v2 Mini',
 
-  // Constellation stats
-  totalOnOrbit: '~6,400',     // operational as of early 2025
-  totalLaunched: '~7,000+',   // cumulative
+  // Constellation stats (as of early 2026)
+  totalOnOrbit: '~10,200',
+  totalLaunched: '~11,700+',
   simulatedCount: TOTAL_SATS,
-  coverage: '75+ countries',
-  subscribers: '4M+',
+  coverage: '150+ countries',
+  subscribers: '10M+',
 
   // Orbital parameters
   altitudeKm: ALTITUDE_KM,
@@ -218,7 +229,7 @@ export const STARLINK_SPECS = {
   bodyDimensions: '4.1m × 2.7m',
   solarArraySpan: '~30m',
   powerKw: '12–14',
-  propulsion: 'Hall-effect (Krypton)',
+  propulsion: 'Hall-effect (Argon)',
   designLifeYears: '~5',
   perSatThroughputGbps: '60–80',
 
@@ -229,8 +240,9 @@ export const STARLINK_SPECS = {
   laserLinksTotal: LASER_LINKS.length,
   userBand: 'Ku-band (10.7–12.7 / 14.0–14.5 GHz)',
   gatewayBand: 'Ka-band (17.8–19.3 / 27.5–30.0 GHz)',
+  eBand: 'E-band (71–76 / 81–86 GHz)',
 
   // Launch
   launchVehicle: 'Falcon 9',
-  satsPerLaunch: 21,
+  satsPerLaunch: '23–29',
 };

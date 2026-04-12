@@ -23,7 +23,7 @@ import {
 
 // ─── Constants ────────────────────────────────────────────────
 
-const TIME_SCALE = 15; // slower than earth (30) so user can click/hover individual sats
+const TIME_SCALE = 10; // slower than earth (30) so user can click/hover individual sats
 const simStartReal = Date.now();
 const simStartDate = new Date();
 
@@ -168,12 +168,7 @@ export function StarlinkSimulation({ isSimulating, onStarlinkSelect, selectedSat
   const [selected, setSelected] = useState<TooltipData | null>(null);
 
   // Satellite geometry — Starlink v2 Mini shape
-  // Enlarge bounding sphere so raycasting picks up clicks/hovers easily
-  const geometry = useMemo(() => {
-    const geo = createStarlinkGeometry();
-    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 0.15);
-    return geo;
-  }, []);
+  const geometry = useMemo(() => createStarlinkGeometry(), []);
 
   // Satellite material — silver/white body with subtle blue emissive (solar panels)
   const material = useMemo(() => {
@@ -225,6 +220,28 @@ export function StarlinkSimulation({ isSimulating, onStarlinkSelect, selectedSat
       meshRef.current.setMatrixAt(i, dummy.matrix);
     }
     meshRef.current.instanceMatrix.needsUpdate = true;
+
+    // Override raycast: default does ray-triangle on the tiny geometry which
+    // nearly always misses. Instead use distance-from-ray-to-instance-center.
+    const mesh = meshRef.current;
+    const HIT_RADIUS_SQ = 0.12 * 0.12;
+    const _mat = new THREE.Matrix4();
+    const _pos = new THREE.Vector3();
+    const _closest = new THREE.Vector3();
+
+    mesh.raycast = function (raycaster: THREE.Raycaster, intersects: THREE.Intersection[]) {
+      for (let i = 0; i < TOTAL_SATS; i++) {
+        this.getMatrixAt(i, _mat);
+        _pos.setFromMatrixPosition(_mat).applyMatrix4(this.matrixWorld);
+        raycaster.ray.closestPointToPoint(_pos, _closest);
+        if (_closest.distanceToSquared(_pos) < HIT_RADIUS_SQ) {
+          const d = raycaster.ray.origin.distanceTo(_closest);
+          if (d >= raycaster.near && d <= raycaster.far) {
+            intersects.push({ distance: d, point: _closest.clone(), object: this, instanceId: i } as THREE.Intersection);
+          }
+        }
+      }
+    };
   }, []);
 
   // Animate each frame
