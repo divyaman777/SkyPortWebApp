@@ -260,8 +260,10 @@ function getVisualOrbitRadius(altitudeKm: number): number {
     const t = (altitudeKm - 2000) / (35786 - 2000);
     return 3.5 + t * (4.5 - 3.5);
   } else {
-    const extra = altitudeKm - 35786;
-    return 4.5 + extra * 0.00001;
+    // Beyond GEO: linear out to the Moon's mean distance at scene radius 20
+    // (matches earth-scene.tsx getOrbitRadius)
+    const MOON_MEAN_ALT = 384400 - 6371;
+    return 4.5 + ((altitudeKm - 35786) / (MOON_MEAN_ALT - 35786)) * (20 - 4.5);
   }
 }
 
@@ -510,19 +512,19 @@ export function computeOrbitPathECI(noradId: number, stepSeconds: number = 30, s
   return points;
 }
 
-/** Compute Moon position as ECI unit vector */
+/** Compute Moon position as ECI unit vector (geocentric, equatorial J2000 —
+ *  matches the Horizons frame used for the Artemis trajectory) */
 export function computeMoonPositionECI(date?: Date): { eciX: number; eciY: number; eciZ: number; distance: number } {
   const now = date || new Date();
-  const equ = Astronomy.Equator(Astronomy.Body.Moon, now, new Astronomy.Observer(0, 0, 0), true, true);
-
-  const raRad = equ.ra * (Math.PI / 12);
-  const decRad = equ.dec * (Math.PI / 180);
+  const AU_KM = 149597870.7;
+  const vec = Astronomy.GeoVector(Astronomy.Body.Moon, now, true);
+  const distance = Math.sqrt(vec.x ** 2 + vec.y ** 2 + vec.z ** 2) * AU_KM;
 
   return {
-    eciX: Math.cos(decRad) * Math.cos(raRad),
-    eciY: Math.cos(decRad) * Math.sin(raRad),
-    eciZ: Math.sin(decRad),
-    distance: equ.dist * 149597870.7,
+    eciX: (vec.x * AU_KM) / distance,
+    eciY: (vec.y * AU_KM) / distance,
+    eciZ: (vec.z * AU_KM) / distance,
+    distance,
   };
 }
 

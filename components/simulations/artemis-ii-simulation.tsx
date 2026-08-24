@@ -22,6 +22,7 @@ import {
   type LiveTrajectoryPoint,
   type TrajectoryPoint,
 } from '@/lib/artemis-data';
+import { setSimTimeOverride } from '@/lib/sim-clock';
 
 // ─── Orion MPCV 3D Model ──────────────────────────────────
 // Accurate model based on NASA specs:
@@ -268,8 +269,8 @@ interface ArtemisSimulationProps {
 
 export function ArtemisSimulation({ isSimulating, onElapsedUpdate, onOrionClick, isOrionSelected, isPlayback }: ArtemisSimulationProps) {
   const [elapsedHours, setElapsedHours] = useState(0);
+  const elapsedRef = useRef(0); // mirror for frame-loop math without stale closures
   const lastUpdateRef = useRef(Date.now());
-  const playbackStartRef = useRef(0); // elapsed hours when playback started
   const [liveTrajectory, setLiveTrajectory] = useState<LiveTrajectoryPoint[] | null>(null);
 
   // Moon texture for ghost moon
@@ -306,23 +307,31 @@ export function ArtemisSimulation({ isSimulating, onElapsedUpdate, onOrionClick,
   useEffect(() => {
     if (isSimulating) {
       const real = getRealElapsed();
+      elapsedRef.current = real;
       setElapsedHours(real);
       lastUpdateRef.current = Date.now();
     }
   }, [isSimulating, getRealElapsed]);
 
-  // When playback mode changes, reset timing
+  // When playback mode changes, reset timing. Playback drives the WHOLE scene
+  // through the shared sim-clock override (Earth rotation, Moon, satellites,
+  // UI panels all replay the mission window together); stopping releases it.
   useEffect(() => {
     if (isPlayback) {
-      // Starting playback — start from 0
+      // Starting playback — start from launch
+      elapsedRef.current = 0;
       setElapsedHours(0);
-      playbackStartRef.current = 0;
       lastUpdateRef.current = Date.now();
+      setSimTimeOverride(new Date(MISSION_START.getTime()));
     } else if (isSimulating) {
-      // Stopping playback — snap back to real time
-      setElapsedHours(getRealElapsed());
+      // Stopping playback — snap back to real time, release the scene clock
+      const real = getRealElapsed();
+      elapsedRef.current = real;
+      setElapsedHours(real);
       lastUpdateRef.current = Date.now();
+      setSimTimeOverride(null);
     }
+    return () => setSimTimeOverride(null);
   }, [isPlayback, isSimulating, getRealElapsed]);
 
   // Advance time each frame
@@ -335,13 +344,18 @@ export function ArtemisSimulation({ isSimulating, onElapsedUpdate, onOrionClick,
       // Fast-forward: 1 real second = SIM_HOURS_PER_SECOND mission hours
       const realDeltaSec = Math.min((now - lastUpdateRef.current) / 1000, 1);
       lastUpdateRef.current = now;
-      setElapsedHours(prev => Math.min(prev + realDeltaSec * SIM_HOURS_PER_SECOND, MISSION_DURATION_HOURS));
+      const next = Math.min(elapsedRef.current + realDeltaSec * SIM_HOURS_PER_SECOND, MISSION_DURATION_HOURS);
+      elapsedRef.current = next;
+      setElapsedHours(next);
+      // Everything else in the scene follows this same mission date
+      setSimTimeOverride(new Date(MISSION_START.getTime() + next * 3600000));
     } else {
       // Live mode: track the ACTUAL mission clock (1x real time). Computing
       // from MISSION_START each frame avoids drift and backgrounded-tab jumps.
       // Only touch state when it moved meaningfully (~2 s) to avoid 60 fps re-renders.
       lastUpdateRef.current = now;
       const real = getRealElapsed();
+      elapsedRef.current = real;
       setElapsedHours(prev => (Math.abs(real - prev) > 0.0005 ? real : prev));
     }
   });
@@ -367,13 +381,23 @@ export function ArtemisSimulation({ isSimulating, onElapsedUpdate, onOrionClick,
     [trajectory]
   );
 
-  // Waypoints — find closest approach to Moon at (MOON_ORBIT_RADIUS, 0, 0)
+  // Split trajectory: solid (traveled) + dashed (remaining). Memoized on the
+  // point index — rebuilding a 1,500+ point Line geometry 60x/s is wasteful;
+  // the Orion model itself marks the exact current position between points.
+  const { traveledPoints, remainingPoints } = useMemo(() => ({
+    traveledPoints: trajectoryVecs.slice(0, currentIdx + 1),
+    remainingPoints: trajectoryVecs.slice(currentIdx),
+  }), [trajectoryVecs, currentIdx]);
+
+  // Waypoints — flyby is the point of max distance from Earth (free-return
+  // apogee, right at the lunar pass). Works for both the ECI live data and
+  // the parametric fallback.
   const { departPoint, flybyPoint, returnPoint } = useMemo(() => {
     const flybyIdx = trajectory.reduce((best, p, i) => {
-      const d = (p.x - MOON_ORBIT_RADIUS) ** 2 + p.y ** 2 + p.z ** 2;
+      const d = p.x ** 2 + p.y ** 2 + p.z ** 2;
       const bestP = trajectory[best];
-      const bd = (bestP.x - MOON_ORBIT_RADIUS) ** 2 + bestP.y ** 2 + bestP.z ** 2;
-      return d < bd ? i : best;
+      const bd = bestP.x ** 2 + bestP.y ** 2 + bestP.z ** 2;
+      return d > bd ? i : best;
     }, 0);
     return {
       departPoint: trajectory[0],
@@ -383,11 +407,6 @@ export function ArtemisSimulation({ isSimulating, onElapsedUpdate, onOrionClick,
   }, [trajectory]);
 
   if (!isSimulating) return null;
-
-  // Split trajectory: solid (traveled) + dashed (remaining)
-  const currentVec = new THREE.Vector3(currentPos.x, currentPos.y, currentPos.z);
-  const traveledPoints = [...trajectoryVecs.slice(0, currentIdx + 1), currentVec];
-  const remainingPoints = [currentVec, ...trajectoryVecs.slice(currentIdx + 1)];
 
   return (
     <group>
@@ -425,8 +444,9 @@ export function ArtemisSimulation({ isSimulating, onElapsedUpdate, onOrionClick,
         status={isPlayback ? 'REPLAY' : getRealElapsed() >= MISSION_DURATION_HOURS ? 'COMPLETE' : 'LIVE'}
       />
 
-      {/* Ghost Moon */}
-      <GhostMoon moonTexture={moonTexture} />
+      {/* Ghost Moon — only for the parametric fallback. With real ECI data
+          the actual scene Moon (astronomy-engine) meets Orion at flyby. */}
+      {!liveTrajectory && <GhostMoon moonTexture={moonTexture} />}
 
       {/* Waypoints */}
       <WaypointMarker position={[departPoint.x, departPoint.y, departPoint.z]} label="DEPART" sublabel="KSC LC-39B" color="#00FF41" />

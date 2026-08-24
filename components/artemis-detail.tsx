@@ -302,7 +302,7 @@ export function ArtemisDetail({ isOpen, onClose, elapsedHours, isPlayback, onPla
               <div className="space-y-1 text-[10px]">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Duration:</span>
-                  <span className="text-foreground">~10 days (226 hours)</span>
+                  <span className="text-foreground">~9 days (217 hours)</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Trajectory:</span>

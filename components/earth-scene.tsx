@@ -5,10 +5,10 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { Satellite, categoryColors, SatelliteCategory } from '@/lib/satellite-data';
-import { computeECIPosition, computeOrbitPathECI, computeMoonPositionECI, computeMoonOrbitNormal, getJWSTPositionECI, getGMST } from '@/lib/satellite-engine';
+import { computeECIPosition, computeOrbitPathECI, computeMoonPositionECI, getJWSTPositionECI, getGMST } from '@/lib/satellite-engine';
 import { trackMoonClick, trackOrbitZoneClick } from '@/lib/analytics';
 import { registerPresence, subscribePresence, type ActiveUser } from '@/lib/presence';
-import { TIME_SCALE, MOON_SPEED_MULT, getSimDate, getMoonSimDate } from '@/lib/sim-clock';
+import { getSimDate, getMoonSimDate, getSimTimeOverride } from '@/lib/sim-clock';
 import { getObserverLocation } from '@/lib/observer-location';
 import { ArtemisSimulation } from '@/components/simulations/artemis-ii-simulation';
 import { StarlinkSimulation } from '@/components/simulations/starlink-simulation';
@@ -82,9 +82,6 @@ function eciDirToThreeJS(eciX: number, eciY: number, eciZ: number, radius: numbe
 
 // Simulation time comes from the shared clock in lib/sim-clock.ts so the
 // UI panels and the 3D scene always agree (see TIME_SCALE / MOON_SPEED_MULT there).
-// Moon tidal-lock rotation rate: one rotation per orbit, in radians per REAL
-// second (applied with the frame delta). One Moon orbit takes ~87 real minutes.
-const MOON_ROT_RATE = (2 * Math.PI) / (27.3 * 24 * 3600 / (TIME_SCALE * MOON_SPEED_MULT));
 
 // Procedural ocean texture — subtle deep blue variation over dark base
 function generateOceanTexture(): HTMLCanvasElement {
@@ -377,50 +374,46 @@ function Moon({ isSelected, onMoonClick }: MoonProps) {
     return tex;
   }, []);
 
-  useFrame((_, delta) => {
-    // Compute Moon ECI position at accelerated moon time
+  useFrame(() => {
+    // During mission replay the clock jumps fast — recompute every frame and
+    // snap; otherwise throttle to 50 ms and ease with a lerp
+    const replaying = getSimTimeOverride() !== null;
     const now = Date.now();
-    if (now - lastMoonUpdate.current > 50) {
+    if (replaying || now - lastMoonUpdate.current > 50) {
       lastMoonUpdate.current = now;
-      const moonDate = getMoonSimDate();
-      const moonEci = computeMoonPositionECI(moonDate);
-      moonTargetPos.current = eciDirToThreeJS(moonEci.eciX, moonEci.eciY, moonEci.eciZ, MOON_ORBIT_RADIUS);
+      const moonEci = computeMoonPositionECI(getMoonSimDate());
+      // Scene radius from the Moon's REAL distance (356k–406k km), using the
+      // same radial compression as satellites and the Artemis trajectory
+      const sceneR = getOrbitRadius(moonEci.distance - 6371);
+      moonTargetPos.current = eciDirToThreeJS(moonEci.eciX, moonEci.eciY, moonEci.eciZ, sceneR);
     }
     if (moonRef.current) {
-      moonRef.current.position.lerp(moonTargetPos.current, 0.15);
-    }
-    // Moon axis rotation (tidally locked — one rotation per orbit)
-    if (moonMeshRef.current) {
-      moonMeshRef.current.rotation.y += delta * MOON_ROT_RATE;
+      if (replaying) {
+        moonRef.current.position.copy(moonTargetPos.current);
+      } else {
+        moonRef.current.position.lerp(moonTargetPos.current, 0.15);
+      }
+      // Tidal lock — same face toward Earth, derived from the position itself
+      // so it stays correct at any playback speed
+      if (moonMeshRef.current) {
+        const p = moonRef.current.position;
+        moonMeshRef.current.rotation.y = Math.atan2(p.x, p.z);
+      }
     }
   });
 
-  // Moon orbit — smooth geometric ellipse in the computed orbital plane
+  // Moon orbit — one sidereal month of REAL positions (astronomy-engine),
+  // mapped with the same radial compression as the Moon itself
   const moonOrbitPoints = useMemo(() => {
-    const normalEci = computeMoonOrbitNormal();
-    // Convert ECI normal to Three.js space
-    const normal = new THREE.Vector3(normalEci.eciX, normalEci.eciZ, -normalEci.eciY).normalize();
-
-    // Build orthonormal basis in the orbital plane
-    const arbitrary = Math.abs(normal.y) < 0.9
-      ? new THREE.Vector3(0, 1, 0)
-      : new THREE.Vector3(1, 0, 0);
-    const u = new THREE.Vector3().crossVectors(arbitrary, normal).normalize();
-    const v = new THREE.Vector3().crossVectors(normal, u).normalize();
-
-    // Smooth ellipse (Moon eccentricity ~0.0549)
-    const a = MOON_ORBIT_RADIUS;
-    const b = MOON_ORBIT_RADIUS * Math.sqrt(1 - 0.0549 * 0.0549); // ≈ 0.9985
     const points: THREE.Vector3[] = [];
-    for (let i = 0; i <= 360; i++) {
-      const angle = (i * Math.PI) / 180;
-      const px = a * Math.cos(angle);
-      const py = b * Math.sin(angle);
-      points.push(new THREE.Vector3(
-        px * u.x + py * v.x,
-        px * u.y + py * v.y,
-        px * u.z + py * v.z,
-      ));
+    const start = Date.now();
+    const SIDEREAL_MONTH_MS = 27.32 * 86400000;
+    const STEPS = 120;
+    for (let i = 0; i <= STEPS; i++) {
+      const date = new Date(start + (i / STEPS) * SIDEREAL_MONTH_MS);
+      const eci = computeMoonPositionECI(date);
+      const sceneR = getOrbitRadius(eci.distance - 6371);
+      points.push(eciDirToThreeJS(eci.eciX, eci.eciY, eci.eciZ, sceneR));
     }
     return points;
   }, []);
@@ -531,9 +524,11 @@ function getOrbitRadius(altitude: number): number {
     const t = (altitude - ORBIT_ZONES.MEO.min) / (ORBIT_ZONES.MEO.max - ORBIT_ZONES.MEO.min);
     return leoMax + t * (meoMax - leoMax);
   } else {
-    // GEO and beyond: 35786km+ maps to radius 4.5+
-    const extra = altitude - ORBIT_ZONES.GEO.altitude;
-    return meoMax + (extra * 0.00001);
+    // Beyond GEO: linear out to the Moon's mean distance at scene radius 20.
+    // MUST match radialMapKm() in scripts/fetch-artemis-trajectory.mjs — the
+    // Artemis trajectory is baked with this same compression.
+    const MOON_MEAN_ALT = 384400 - 6371; // 378,029 km
+    return meoMax + ((altitude - ORBIT_ZONES.GEO.altitude) / (MOON_MEAN_ALT - ORBIT_ZONES.GEO.altitude)) * (MOON_ORBIT_RADIUS - meoMax);
   }
 }
 
@@ -1069,7 +1064,13 @@ function SatelliteMarker({
       }
 
       if (pos) {
-        satelliteRef.current.position.lerp(pos, 0.2);
+        // During mission replay satellites move fast — snap to the true
+        // position; lerp only at normal speed for smoothness
+        if (getSimTimeOverride()) {
+          satelliteRef.current.position.copy(pos);
+        } else {
+          satelliteRef.current.position.lerp(pos, 0.2);
+        }
       }
     }
   });

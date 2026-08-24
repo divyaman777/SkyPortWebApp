@@ -12,14 +12,16 @@ export const ARTEMIS_COLOR = '#448AFF'; // Blue — distinct from LEO/MEO/GEO or
 /** Mission start: April 1, 2026 22:35 UTC (actual SLS launch from KSC LC-39B) */
 export const MISSION_START = new Date('2026-04-01T22:35:00Z');
 
-/** Total mission duration in hours (~10 days) */
-export const MISSION_DURATION_HOURS = 226;
+/** Total mission duration in hours — Horizons ephemeris ends at splashdown,
+ *  2026-Apr-10 ~23:51 UTC (~9 days) */
+export const MISSION_DURATION_HOURS = 217.3;
 
 /** Simulation playback: 1 real second = 2 mission hours */
 export const SIM_HOURS_PER_SECOND = 2;
 
-/** Closest approach to lunar surface in km */
-export const PERILUNE_KM = 6513;
+/** Closest approach to lunar surface in km (measured from Horizons
+ *  Orion-Moon separation at flyby) */
+export const PERILUNE_KM = 6546;
 
 // ─── Scene-Scale Constants ──────────────────────────────────
 // Must match earth-scene.tsx values
@@ -86,7 +88,7 @@ export const MISSION_PHASES: MissionPhase[] = [
     shortName: 'FLYBY',
     startHour: 115,
     endHour: 126,
-    description: 'Orion swings behind the far side of the Moon at closest approach of 6,513 km — the farthest humans have traveled from Earth since Apollo 17.',
+    description: 'Orion swings behind the far side of the Moon at closest approach of 6,546 km — the farthest humans have traveled from Earth since Apollo 17.',
     velocity: 1.2,
     color: '#FFFFFF',
   },
@@ -95,7 +97,7 @@ export const MISSION_PHASES: MissionPhase[] = [
     name: 'Return Transit',
     shortName: 'RETURN',
     startHour: 126,
-    endHour: 220,
+    endHour: 215,
     description: 'Free-return trajectory brings Orion back toward Earth. Crew prepares for re-entry.',
     velocity: 4.0,
     color: ARTEMIS_COLOR,
@@ -104,8 +106,8 @@ export const MISSION_PHASES: MissionPhase[] = [
     id: 'reentry',
     name: 'Earth Return & Splashdown',
     shortName: 'SPLASHDOWN',
-    startHour: 220,
-    endHour: 226,
+    startHour: 215,
+    endHour: 217.3,
     description: 'Orion re-enters atmosphere at ~11 km/s using skip re-entry, deploys parachutes, and splashes down in the Pacific Ocean.',
     velocity: 11.0,
     color: '#00D4FF',
@@ -224,7 +226,7 @@ export function generateTrajectory(numPoints: number = 600): TrajectoryPoint[] {
     points.push({ x, y: 0, z, hour });
   }
 
-  // ── Phase 4: Return transit (hours 126–220) ───────────────
+  // ── Phase 4: Return transit (hours 126–215) ───────────────
   // Lower path (negative z) from near-Moon back to Earth
   const returnPoints = Math.floor(numPoints * 0.35);
   const returnStart = points[points.length - 1];
@@ -232,7 +234,7 @@ export function generateTrajectory(numPoints: number = 600): TrajectoryPoint[] {
   const returnEndZ = -pathSpread * 0.5;
   for (let i = 1; i <= returnPoints; i++) {
     const t = i / returnPoints; // 0→1
-    const hour = 126 + t * 94; // hours 126–220
+    const hour = 126 + t * 89; // hours 126–215
 
     // Cubic Bezier return path (mirror of outbound, lower)
     const cp1x = returnStart.x - (returnStart.x - returnEndX) * 0.3;
@@ -247,12 +249,12 @@ export function generateTrajectory(numPoints: number = 600): TrajectoryPoint[] {
     points.push({ x, y: 0, z, hour });
   }
 
-  // ── Phase 5: Earth return spiral (hours 220–226) ──────────
+  // ── Phase 5: Earth return spiral (hours 215–217.3) ────────
   const arrivalPoints = Math.floor(numPoints * 0.05);
   const arriveStart = points[points.length - 1];
   for (let i = 1; i <= arrivalPoints; i++) {
     const t = i / arrivalPoints; // 0→1
-    const hour = 220 + t * 6; // hours 220–226
+    const hour = 215 + t * 2.3; // hours 215–217.3
 
     // Spiral inward to Earth
     const r = arriveStart.x * (1 - t) + LEO_RADIUS_SCENE * t;
@@ -294,11 +296,11 @@ export function getDistanceFromEarth(elapsedHours: number): number {
 
   // Return: ~384400 → 5400
   if (phase.id === 'return') {
-    const pt = (elapsedHours - 126) / 94;
+    const pt = (elapsedHours - 126) / 89;
     return 384400 - pt * (384400 - 5400);
   }
   // Reentry: 5400 → 0
-  const pt = (elapsedHours - 220) / 6;
+  const pt = (elapsedHours - 215) / 2.3;
   return 5400 * (1 - pt);
 }
 
@@ -391,11 +393,14 @@ export async function fetchLiveTrajectory(): Promise<LiveTrajectoryPoint[] | nul
   if (_liveCache) return _liveCache;
 
   try {
-    const res = await fetch('/artemis-live-trajectory.json');
+    const res = await fetch('/artemis-live-trajectory.json', { cache: 'no-cache' });
     if (!res.ok) return null;
 
     const data = await res.json();
     if (!data.trajectory?.length) return null;
+    // Older cached files are in a detached fixed frame that no longer matches
+    // the scene — only accept the scene-mapped ECI format
+    if (data.frame !== 'eci-scene') return null;
 
     _liveCache = data.trajectory as LiveTrajectoryPoint[];
     _liveSource = data.source || 'JPL Horizons';

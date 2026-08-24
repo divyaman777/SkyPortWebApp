@@ -3,6 +3,13 @@
  * Fetch Artemis II (Orion) real trajectory from JPL Horizons
  * and convert to scene coordinates for the Skyport 3D visualizer.
  *
+ * The trajectory is stored in the SCENE'S ECI FRAME — the same axis mapping
+ * (ECI X → scene X, ECI Z → scene Y, ECI Y → -scene Z) and the same radial
+ * compression used by earth-scene.tsx for satellites and the Moon. That way
+ * Orion, the Earth's rotation, the Moon (astronomy-engine), and the TLE
+ * satellites all live in one consistent space, and during playback the whole
+ * scene can replay the mission window together.
+ *
  * Usage: node scripts/fetch-artemis-trajectory.mjs
  * Output: public/artemis-live-trajectory.json
  */
@@ -15,8 +22,55 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const HORIZONS_URL = 'https://ssd.jpl.nasa.gov/api/horizons.api';
 const ORION_CMD = '-1024'; // Artemis II / Orion MPCV (Integrity)
 const MOON_CMD = '301';    // Earth's Moon
-const SCENE_MOON_R = 20;   // scene units (matches earth-scene.tsx)
-const MISSION_START_MS = Date.UTC(2026, 3, 1, 22, 35, 0); // Apr 1, 2026 22:35 UTC
+const MISSION_START_MS = Date.UTC(2026, 3, 1, 22, 35, 12); // Apr 1, 2026 22:35:12 UTC (actual launch)
+
+// Horizons ephemeris coverage for -1024 (post-mission reconstruction):
+// 2026-Apr-02 01:58 TDB through 2026-Apr-10 23:51 TDB — the first ~3.4 h
+// (launch + LEO checkout) are not in Horizons, so we prepend a synthetic
+// launch point at KSC's actual ECI position at liftoff.
+const START_TIME = '2026-04-02 02:00';
+const STOP_TIME = '2026-04-10 23:51';
+const STEP_SIZE = '10 min';
+
+// KSC LC-39B geodetic position
+const KSC_LAT_DEG = 28.6272;
+const KSC_LON_DEG = -80.6208;
+
+/** Greenwich Mean Sidereal Time (radians) — standard IAU 1982-ish approximation */
+function gmstRad(dateMs) {
+  const jd = dateMs / 86400000 + 2440587.5;
+  const T = (jd - 2451545.0) / 36525.0;
+  let gmstDeg =
+    280.46061837 +
+    360.98564736629 * (jd - 2451545.0) +
+    0.000387933 * T * T -
+    (T * T * T) / 38710000.0;
+  gmstDeg = ((gmstDeg % 360) + 360) % 360;
+  return (gmstDeg * Math.PI) / 180;
+}
+
+// ── Scene radial compression — MUST match getOrbitRadius() in earth-scene.tsx ──
+const EARTH_R_KM = 6371;
+const MOON_MEAN_DIST_KM = 384400;
+const MOON_MEAN_ALT_KM = MOON_MEAN_DIST_KM - EARTH_R_KM; // 378029
+const SCENE_MOON_R = 20;
+const SCENE_MOON_RADIUS = 0.55;
+
+function radialMapKm(geocentricKm) {
+  const alt = geocentricKm - EARTH_R_KM;
+  if (alt <= 160) return 2.0 + Math.max(0, alt / 160) * 0.3; // surface → LEO floor
+  if (alt <= 2000) return 2.3 + ((alt - 160) / (2000 - 160)) * (3.5 - 2.3);
+  if (alt <= 35786) return 3.5 + ((alt - 2000) / (35786 - 2000)) * (4.5 - 3.5);
+  // Beyond GEO: linear out to the Moon's mean distance at scene radius 20
+  return 4.5 + ((alt - 35786) / (MOON_MEAN_ALT_KM - 35786)) * (SCENE_MOON_R - 4.5);
+}
+
+/** ECI (km) → scene coords: ECI X → x, ECI Z → y (north up), ECI Y → -z */
+function eciToScene(x, y, z) {
+  const r = Math.sqrt(x * x + y * y + z * z);
+  const s = radialMapKm(r) / r;
+  return { x: x * s, y: z * s, z: -y * s };
+}
 
 function parseVectors(raw) {
   const soe = raw.indexOf('$$SOE');
@@ -51,23 +105,29 @@ function parseVectors(raw) {
   return results;
 }
 
-async function queryHorizons(command, label) {
-  console.log(`  Fetching ${label} (COMMAND='${command}')...`);
+async function queryHorizons(command, label, start = START_TIME, stop = STOP_TIME, step = STEP_SIZE) {
+  console.log(`  Fetching ${label} (COMMAND='${command}', ${step} steps)...`);
   const params = [
     `format=text`,
     `COMMAND='${command}'`,
     `CENTER='500@399'`,
     `MAKE_EPHEM='YES'`,
     `TABLE_TYPE='VECTORS'`,
-    `START_TIME='2026-04-02 02:00'`,
-    `STOP_TIME='2026-04-10 23:00'`,
-    `STEP_SIZE='15 min'`,
+    `START_TIME='${start}'`,
+    `STOP_TIME='${stop}'`,
+    `STEP_SIZE='${step}'`,
     `OUT_UNITS='KM-S'`,
     `REF_SYSTEM='J2000'`,
+    `REF_PLANE='FRAME'`, // Earth mean equator (equatorial J2000) — Horizons defaults to ECLIPTIC, which would twist the whole trajectory ~23.4° out of the scene's ECI frame
     `CSV_FORMAT='YES'`,
   ].join('&');
 
-  const res = await fetch(`${HORIZONS_URL}?${params}`);
+  let res = await fetch(`${HORIZONS_URL}?${encodeURI(params)}`);
+  if (res.status === 503) {
+    // Horizons rate-limits bursts — back off once and retry
+    await new Promise(r => setTimeout(r, 5000));
+    res = await fetch(`${HORIZONS_URL}?${encodeURI(params)}`);
+  }
   if (!res.ok) throw new Error(`Horizons returned ${res.status} for ${label}`);
 
   const text = await res.text();
@@ -76,148 +136,81 @@ async function queryHorizons(command, label) {
   return vectors;
 }
 
-function toSceneCoords(orion, moon) {
-  const EARTH_SURFACE = 2.0;
-  const EARTH_CLEAR = 2.5;
-  const MOON_POS = SCENE_MOON_R; // 20
-  const MOON_RADIUS = 0.55;
-  const MOON_MIN_R = MOON_RADIUS + 0.65;
+/** Replace coarse points inside the dense window with the dense samples */
+function mergeDense(coarse, dense) {
+  if (!dense.length) return coarse;
+  const lo = dense[0].jd, hi = dense[dense.length - 1].jd;
+  return coarse
+    .filter(p => p.jd < lo || p.jd > hi)
+    .concat(dense)
+    .sort((a, b) => a.jd - b.jd);
+}
 
-  // ── Step 1: Build a FIXED reference frame from Moon's position at flyby ──
-  // Using a rotating frame causes huge distortion near Earth because the Moon
-  // moves ~132° during the 10-day mission. Instead, we fix the frame to the
-  // Moon's position at closest approach so the trajectory looks clean.
-
-  // Find flyby time (max Orion distance from Earth ≈ near Moon)
-  let flybyIdx = 0;
-  let maxOrionDist = 0;
-  for (let i = 0; i < orion.length; i++) {
-    const d = Math.sqrt(orion[i].x ** 2 + orion[i].y ** 2 + orion[i].z ** 2);
-    if (d > maxOrionDist) { maxOrionDist = d; flybyIdx = i; }
-  }
-
-  // Moon's ECI position + velocity at flyby → defines our fixed basis
-  const mf = moon[flybyIdx];
-  const mfd = Math.sqrt(mf.x ** 2 + mf.y ** 2 + mf.z ** 2);
-  const ex = { x: mf.x / mfd, y: mf.y / mfd, z: mf.z / mfd }; // toward Moon at flyby
-
-  const lx = mf.y * mf.vz - mf.z * mf.vy;
-  const ly = mf.z * mf.vx - mf.x * mf.vz;
-  const lz = mf.x * mf.vy - mf.y * mf.vx;
-  const lm = Math.sqrt(lx * lx + ly * ly + lz * lz);
-  const ez = { x: lx / lm, y: ly / lm, z: lz / lm }; // orbit normal
-  const ey = {
-    x: ez.y * ex.z - ez.z * ex.y,
-    y: ez.z * ex.x - ez.x * ex.z,
-    z: ez.x * ex.y - ez.y * ex.x,
-  }; // in-plane perpendicular
-
-  // Fixed scale: Moon distance at flyby → 20 scene units
-  const scale = SCENE_MOON_R / mfd;
-
-  console.log(`  Fixed frame from flyby at point ${flybyIdx} (Moon dist ${(mfd/1000).toFixed(0)}k km)`);
-
-  // ── Step 2: Project all Orion points into this fixed frame ──
-  const raw = [];
-  for (let i = 0; i < orion.length; i++) {
-    const o = orion[i];
-    const alpha = o.x * ex.x + o.y * ex.y + o.z * ex.z; // toward Moon
-    const beta  = o.x * ey.x + o.y * ey.y + o.z * ey.z; // perpendicular in plane
-    const gamma = o.x * ez.x + o.y * ez.y + o.z * ez.z; // out of plane
-
-    let sx = alpha * scale;  // scene X (toward Moon)
-    let sy = gamma * scale;  // scene Y (up)
-    let sz = beta * scale;   // scene Z (perpendicular)
-
-    // Clamp near Moon surface
-    const dx = sx - MOON_POS, dy = sy, dz = sz;
-    const moonDist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    if (moonDist > 0.01 && moonDist < MOON_MIN_R) {
-      const f = MOON_MIN_R / moonDist;
-      sx = MOON_POS + dx * f;
-      sy = dy * f;
-      sz = dz * f;
-    }
-
-    const epochMs = (o.jd - 2440587.5) * 86400000;
-    const hour = (epochMs - MISSION_START_MS) / 3600000;
-    const distKm = Math.sqrt(o.x * o.x + o.y * o.y + o.z * o.z);
-    const velKmS = Math.sqrt(o.vx * o.vx + o.vy * o.vy + o.vz * o.vz);
-
-    raw.push({ sx, sy, sz, hour: Math.max(0, hour), distKm, velKmS });
-  }
-
-  // ── Step 3: Trim near-Earth points ──
-  // The trajectory before TLI (~hour 26) includes elliptical Earth orbits that
-  // loop back near Earth. Find the LAST near-Earth dip in the first half of the
-  // data — everything before that is pre-TLI orbit and should be skipped.
-  const halfLen = Math.floor(raw.length / 2);
-  let lastDipIdx = 0;
-  for (let i = 0; i < halfLen; i++) {
-    const r = Math.sqrt(raw[i].sx ** 2 + raw[i].sy ** 2 + raw[i].sz ** 2);
-    if (r < EARTH_CLEAR) lastDipIdx = i;
-  }
-
-  // First valid outbound point: first point at r >= EARTH_CLEAR AFTER the last dip
-  let firstOutIdx = lastDipIdx + 1;
-  for (let i = lastDipIdx + 1; i < raw.length; i++) {
-    if (Math.sqrt(raw[i].sx ** 2 + raw[i].sy ** 2 + raw[i].sz ** 2) >= EARTH_CLEAR) {
-      firstOutIdx = i; break;
-    }
-  }
-
-  // Last valid return point
-  let lastOutIdx = raw.length - 1;
-  for (let i = raw.length - 1; i >= 0; i--) {
-    if (Math.sqrt(raw[i].sx ** 2 + raw[i].sy ** 2 + raw[i].sz ** 2) >= EARTH_CLEAR) {
-      lastOutIdx = i; break;
-    }
-  }
-
-  console.log(`  Trimmed pre-TLI orbit: skipped points 0-${lastDipIdx} (hours 0-${raw[lastDipIdx]?.hour.toFixed(0) || '?'})`);
-  console.log(`  Trajectory starts at point ${firstOutIdx} (hour ${raw[firstOutIdx]?.hour.toFixed(1) || '?'})`);
-  console.log(`  Trajectory ends at point ${lastOutIdx} (hour ${raw[lastOutIdx]?.hour.toFixed(1) || '?'})`);
-
-  // ── Step 4: Build final trajectory ──
+function toSceneTrajectory(orion, moon) {
+  // Orion and Moon queries share START/STOP/STEP, so indices line up
   const pts = [];
+  let periluneKm = Infinity;
 
-  // Departure point on Earth surface aimed toward first outbound point
-  const fo = raw[firstOutIdx];
-  const foR = Math.sqrt(fo.sx ** 2 + fo.sy ** 2 + fo.sz ** 2);
-  const ds = EARTH_SURFACE / foR;
-  pts.push({
-    x: parseFloat((fo.sx * ds).toFixed(6)),
-    y: parseFloat((fo.sy * ds).toFixed(6)),
-    z: parseFloat((fo.sz * ds).toFixed(6)),
-    hour: 0, distanceKm: 200, velocityKmS: 7.8,
-  });
-
-  // All outbound → flyby → return points
-  for (let i = firstOutIdx; i <= lastOutIdx; i++) {
-    const p = raw[i];
+  // Synthetic hour-0 point: KSC LC-39B's ECI direction at liftoff, on the
+  // Earth's surface. With the scene Earth rotated to GMST(launch), this sits
+  // exactly over the Cape.
+  {
+    const lat = (KSC_LAT_DEG * Math.PI) / 180;
+    const lonEci = gmstRad(MISSION_START_MS) + (KSC_LON_DEG * Math.PI) / 180;
+    const r = 2.01; // just above the scene Earth surface
     pts.push({
-      x: parseFloat(p.sx.toFixed(6)),
-      y: parseFloat(p.sy.toFixed(6)),
-      z: parseFloat(p.sz.toFixed(6)),
-      hour: parseFloat(p.hour.toFixed(4)),
-      distanceKm: parseFloat(p.distKm.toFixed(1)),
-      velocityKmS: parseFloat(p.velKmS.toFixed(4)),
+      x: parseFloat((r * Math.cos(lat) * Math.cos(lonEci)).toFixed(6)),
+      y: parseFloat((r * Math.sin(lat)).toFixed(6)),
+      z: parseFloat((-r * Math.cos(lat) * Math.sin(lonEci)).toFixed(6)),
+      hour: 0,
+      distanceKm: 0,
+      velocityKmS: 0.4, // Earth-surface rotation speed at the Cape
     });
   }
 
-  // Arrival point on Earth surface
-  const lo = raw[lastOutIdx];
-  const loR = Math.sqrt(lo.sx ** 2 + lo.sy ** 2 + lo.sz ** 2);
-  const as = EARTH_SURFACE / loR;
-  pts.push({
-    x: parseFloat((lo.sx * as).toFixed(6)),
-    y: parseFloat((lo.sy * as).toFixed(6)),
-    z: parseFloat((lo.sz * as).toFixed(6)),
-    hour: parseFloat(raw[raw.length - 1].hour.toFixed(4)),
-    distanceKm: 200, velocityKmS: 11.0,
-  });
+  for (let i = 0; i < orion.length; i++) {
+    const o = orion[i];
+    const epochMs = (o.jd - 2440587.5) * 86400000;
+    const hour = (epochMs - MISSION_START_MS) / 3600000;
+    if (hour < 0) continue;
 
-  return pts;
+    const distKm = Math.sqrt(o.x * o.x + o.y * o.y + o.z * o.z);
+    const velKmS = Math.sqrt(o.vx * o.vx + o.vy * o.vy + o.vz * o.vz);
+
+    let s = eciToScene(o.x, o.y, o.z);
+
+    // The scene Moon is rendered ~6x oversized (0.55 units vs true-scale 0.09),
+    // so the real ~7,000 km flyby clearance would put Orion visually inside the
+    // Moon sphere. Clamp only the RENDERED point away from the Moon's scene
+    // position at that instant — distanceKm/velocityKmS stay untouched.
+    const m = moon[i];
+    if (m) {
+      const moonDistKm = Math.sqrt(
+        (o.x - m.x) ** 2 + (o.y - m.y) ** 2 + (o.z - m.z) ** 2
+      );
+      periluneKm = Math.min(periluneKm, moonDistKm);
+
+      const ms = eciToScene(m.x, m.y, m.z);
+      const dx = s.x - ms.x, dy = s.y - ms.y, dz = s.z - ms.z;
+      const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      const MIN_CLEAR = SCENE_MOON_RADIUS + 0.2;
+      if (d > 0.001 && d < MIN_CLEAR) {
+        const f = MIN_CLEAR / d;
+        s = { x: ms.x + dx * f, y: ms.y + dy * f, z: ms.z + dz * f };
+      }
+    }
+
+    pts.push({
+      x: parseFloat(s.x.toFixed(6)),
+      y: parseFloat(s.y.toFixed(6)),
+      z: parseFloat(s.z.toFixed(6)),
+      hour: parseFloat(hour.toFixed(4)),
+      distanceKm: parseFloat(distKm.toFixed(1)),
+      velocityKmS: parseFloat(velKmS.toFixed(4)),
+    });
+  }
+
+  return { pts, periluneKm };
 }
 
 async function main() {
@@ -226,28 +219,40 @@ async function main() {
   console.log(`  Mission start: ${new Date(MISSION_START_MS).toISOString()}`);
   console.log('');
 
-  const [orion, moon] = await Promise.all([
-    queryHorizons(ORION_CMD, 'Orion MPCV'),
-    queryHorizons(MOON_CMD, 'Moon'),
-  ]);
+  // Coarse 10-min sweep of the whole mission, plus a dense 1-min window
+  // around the perigee pass / TLI burn (hour ~24-27) where Orion moves at
+  // ~10 km/s and 10-min sampling leaves visible corners in the path.
+  const DENSE_START = '2026-04-02 21:30';
+  const DENSE_STOP = '2026-04-03 03:00';
+  // Sequential — Horizons rate-limits parallel bursts
+  const orionCoarse = await queryHorizons(ORION_CMD, 'Orion MPCV');
+  const moonCoarse = await queryHorizons(MOON_CMD, 'Moon');
+  const orionDense = await queryHorizons(ORION_CMD, 'Orion MPCV (perigee/TLI dense)', DENSE_START, DENSE_STOP, '1 min');
+  const moonDense = await queryHorizons(MOON_CMD, 'Moon (perigee/TLI dense)', DENSE_START, DENSE_STOP, '1 min');
+  const orion = mergeDense(orionCoarse, orionDense);
+  const moon = mergeDense(moonCoarse, moonDense);
 
   if (!orion.length) {
     console.error('[ARTEMIS] ERROR: No Orion data returned from Horizons.');
-    console.error('  The spacecraft ID -1024 may not exist yet or the mission dates may be off.');
-    console.error('  The app will use parametric fallback trajectory.');
+    console.error('  The app will use the parametric fallback trajectory.');
     process.exit(1);
   }
 
-  console.log('\n  Converting to scene coordinates (Earth-Moon rotating frame)...');
-  const trajectory = toSceneCoords(orion, moon);
+  console.log('\n  Converting to scene ECI coordinates...');
+  const { pts: trajectory, periluneKm } = toSceneTrajectory(orion, moon);
+
+  // Perilune above the lunar surface (Moon radius 1737.4 km)
+  const periluneAltKm = Math.round(periluneKm - 1737.4);
 
   const output = {
     trajectory,
     source: 'JPL Horizons',
+    frame: 'eci-scene', // scene-mapped ECI — checked at load time
     orionId: ORION_CMD,
     noradId: 68538,
     cospar: '2026-069A',
     missionStart: new Date(MISSION_START_MS).toISOString(),
+    periluneAltKm,
     pointCount: trajectory.length,
     fetchedAt: new Date().toISOString(),
     hourRange: trajectory.length > 0
@@ -261,13 +266,13 @@ async function main() {
   const sizeKB = (Buffer.byteLength(JSON.stringify(output)) / 1024).toFixed(1);
   console.log(`\n[ARTEMIS] Wrote ${trajectory.length} points to public/artemis-live-trajectory.json (${sizeKB} KB)`);
 
-  // Print trajectory summary
   if (trajectory.length > 0) {
     const first = trajectory[0];
     const last = trajectory[trajectory.length - 1];
     const maxDist = Math.max(...trajectory.map(p => p.distanceKm));
     console.log(`  Time range: T+${first.hour.toFixed(1)}h to T+${last.hour.toFixed(1)}h`);
     console.log(`  Max distance: ${(maxDist / 1000).toFixed(0)}k km`);
+    console.log(`  Perilune altitude: ${periluneAltKm.toLocaleString()} km above lunar surface`);
     console.log(`  Velocity range: ${Math.min(...trajectory.map(p => p.velocityKmS)).toFixed(2)} - ${Math.max(...trajectory.map(p => p.velocityKmS)).toFixed(2)} km/s`);
   }
 }
