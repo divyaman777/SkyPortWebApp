@@ -6,6 +6,7 @@ import { Eye, Rocket } from 'lucide-react';
 interface StatusBarProps {
   overheadCount: number;
   onSupportClick?: () => void;
+  onViewListClick?: () => void;
 }
 
 function MiniWorldMap() {
@@ -85,7 +86,7 @@ function MiniWorldMap() {
   );
 }
 
-export function StatusBar({ overheadCount, onSupportClick }: StatusBarProps) {
+export function StatusBar({ overheadCount, onSupportClick, onViewListClick }: StatusBarProps) {
   const [cursorVisible, setCursorVisible] = useState(true);
 
   useEffect(() => {
@@ -133,7 +134,10 @@ export function StatusBar({ overheadCount, onSupportClick }: StatusBarProps) {
             <span className="text-[#00FF41] font-vt323 text-base glow-green">{overheadCount}</span>
             <span className="text-muted-foreground hidden sm:inline">objects</span>
           </div>
-          <button className="hidden md:flex items-center gap-2 px-2 py-1 glass-panel rounded hover:bg-[rgba(0,255,65,0.1)] transition-colors flex-shrink-0">
+          <button
+            onClick={onViewListClick}
+            className="hidden md:flex items-center gap-2 px-2 py-1 glass-panel rounded hover:bg-[rgba(0,255,65,0.1)] transition-colors flex-shrink-0"
+          >
             <Eye className="w-3 h-3 text-[#00D4FF]" />
             <span className="text-foreground">[VIEW_LIST]</span>
           </button>

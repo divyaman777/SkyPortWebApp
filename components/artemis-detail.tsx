@@ -29,12 +29,17 @@ interface ArtemisDetailProps {
 function TelemetryStream({ elapsedHours }: { elapsedHours: number }) {
   const [lines, setLines] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Read elapsedHours through a ref so the interval below isn't torn down and
+  // recreated on every update (which would starve it and never emit a line)
+  const elapsedRef = useRef(elapsedHours);
+  elapsedRef.current = elapsedHours;
 
   useEffect(() => {
     const generateTelemetry = () => {
-      const phase = getCurrentPhase(elapsedHours);
-      const vel = getVelocity(elapsedHours);
-      const dist = getDistanceFromEarth(elapsedHours);
+      const hours = elapsedRef.current;
+      const phase = getCurrentPhase(hours);
+      const vel = getVelocity(hours);
+      const dist = getDistanceFromEarth(hours);
 
       const entries = [
         `[CM_TELM] CABIN_PRESS: ${(14.5 + Math.random() * 0.4).toFixed(1)} psi | TEMP: ${(21 + Math.random() * 2).toFixed(1)}°C`,
@@ -43,7 +48,7 @@ function TelemetryStream({ elapsedHours }: { elapsedHours: number }) {
         `[COMMS] DSN: GOLDSTONE | RSSI: -${(120 + Math.random() * 30).toFixed(0)} dBm | LOCK: OK`,
         `[GNC] ATT: NOMINAL | PHASE: ${phase.shortName} | MODE: FREE_DRIFT`,
         `[ECLSS] O2: ${(20.5 + Math.random() * 0.5).toFixed(1)}% | CO2: ${(0.2 + Math.random() * 0.1).toFixed(2)}% | H2O: NOMINAL`,
-        `[ESM_PROP] MMH: ${(85 - elapsedHours * 0.02).toFixed(0)}% | MON3: ${(87 - elapsedHours * 0.02).toFixed(0)}% | AJ10: STBY`,
+        `[ESM_PROP] MMH: ${(85 - hours * 0.02).toFixed(0)}% | MON3: ${(87 - hours * 0.02).toFixed(0)}% | AJ10: STBY`,
         `[THERMAL] CM_SHIELD: ${(45 + Math.random() * 10).toFixed(0)}°C | ESM_RAD: ${(-5 + Math.random() * 15).toFixed(0)}°C`,
         `[CREW] HEARTRATE_AVG: ${(65 + Math.random() * 15).toFixed(0)} bpm | STATUS: ALL_NOMINAL`,
       ];
@@ -55,7 +60,7 @@ function TelemetryStream({ elapsedHours }: { elapsedHours: number }) {
     }, 1200);
 
     return () => clearInterval(interval);
-  }, [elapsedHours]);
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -140,6 +145,11 @@ export function ArtemisDetail({ isOpen, onClose, elapsedHours, isPlayback, onPla
   const launchDate = MISSION_START.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const liveSource = getLiveDataSource();
 
+  // Honest status: the mission has a fixed window — after splashdown this
+  // panel is a replay of recorded data, not live tracking
+  const missionEnded = (Date.now() - MISSION_START.getTime()) / 3600000 >= MISSION_DURATION_HOURS;
+  const statusLabel = isPlayback ? 'REPLAY' : missionEnded ? 'COMPLETE' : 'LIVE';
+
   return (
     <aside className="fixed top-14 right-0 bottom-10 w-full md:w-[380px] z-40 glass-panel border-l border-[rgba(68,138,255,0.25)] overflow-y-auto scan-reveal">
       <div className="p-4">
@@ -151,8 +161,8 @@ export function ArtemisDetail({ isOpen, onClose, elapsedHours, isPlayback, onPla
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-bold text-foreground">ARTEMIS II</h2>
                 <span className="flex items-center gap-1 text-[8px] bg-[rgba(68,138,255,0.12)] text-[#448AFF] px-1.5 py-0.5 rounded">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#448AFF] animate-pulse" />
-                  LIVE
+                  <span className={`w-1.5 h-1.5 rounded-full bg-[#448AFF] ${statusLabel === 'LIVE' ? 'animate-pulse' : ''}`} />
+                  {statusLabel}
                 </span>
               </div>
               <p className="text-[10px] text-muted-foreground">First crewed lunar flyby since Apollo 17 (1972)</p>
@@ -180,8 +190,8 @@ export function ArtemisDetail({ isOpen, onClose, elapsedHours, isPlayback, onPla
           </div>
           {liveSource && (
             <div className="mt-2 flex items-center gap-1.5 text-[9px]">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#00FF41] animate-pulse" />
-              <span className="text-[#00FF41]">LIVE TRACKING</span>
+              <span className={`w-1.5 h-1.5 rounded-full bg-[#00FF41] ${missionEnded ? '' : 'animate-pulse'}`} />
+              <span className="text-[#00FF41]">{missionEnded ? 'RECORDED TRAJECTORY' : 'LIVE TRACKING'}</span>
               <span className="text-muted-foreground">via {liveSource}</span>
               <span className="text-muted-foreground ml-auto">NORAD 68538</span>
             </div>
@@ -304,7 +314,7 @@ export function ArtemisDetail({ isOpen, onClose, elapsedHours, isPlayback, onPla
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Max distance:</span>
-                  <span className="text-foreground">~450,000 km</span>
+                  <span className="text-foreground">~413,000 km</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Re-entry speed:</span>

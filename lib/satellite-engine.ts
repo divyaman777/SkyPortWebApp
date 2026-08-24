@@ -202,12 +202,7 @@ export function computeSatellitePosition(noradId: number, date?: Date): Satellit
 
   // Extract orbital elements from satrec
   const inclination = tle.satrec.inclo * (180 / Math.PI); // radians to degrees
-  const meanMotion = tle.satrec.no; // radians per minute (internal)
-  // Convert mean motion (rad/min in internal units) to period (minutes)
-  // satrec.no is in radians/minute after conversion
-  const period = (2 * Math.PI) / (meanMotion * 1440 / (2 * Math.PI)) * (1440 / (2 * Math.PI));
-  // Simpler: period in minutes = 2pi / (no_kozai * 60) where no_kozai is rev/s ...
-  // Actually satrec.no is in rad/min so period = 2*PI / satrec.no
+  // satrec.no is mean motion in rad/min, so period = 2π / no
   const periodMinutes = (2 * Math.PI) / tle.satrec.no;
 
   // Find registry entry
@@ -305,18 +300,22 @@ export async function computeMoonPosition(date?: Date): Promise<MoonPosition> {
   // Distance in km
   const distance = equ.dist * 149597870.7; // AU to km
 
-  // Phase
-  const phaseAngle = moonIllum.phase_angle;
-  const illumination = (1 + Math.cos(phaseAngle * Math.PI / 180)) / 2 * 100;
+  // Illuminated fraction straight from astronomy-engine
+  const illumination = moonIllum.phase_fraction * 100;
 
-  // Phase name
+  // Phase name from the ecliptic phase angle (0 = new, 90 = first quarter,
+  // 180 = full, 270 = third quarter) — unlike the Sun-Moon-Earth phase angle,
+  // this distinguishes waxing from waning
+  const phaseDeg = Astronomy.MoonPhase(now);
   let phase: string;
-  const pa = moonIllum.phase_angle;
-  if (pa < 10) phase = 'Full Moon';
-  else if (pa < 80) phase = moonIllum.phase_angle > 0 ? 'Waning Gibbous' : 'Waxing Gibbous';
-  else if (pa < 100) phase = 'Quarter';
-  else if (pa < 170) phase = 'Crescent';
-  else phase = 'New Moon';
+  if (phaseDeg < 22.5 || phaseDeg >= 337.5) phase = 'New Moon';
+  else if (phaseDeg < 67.5) phase = 'Waxing Crescent';
+  else if (phaseDeg < 112.5) phase = 'First Quarter';
+  else if (phaseDeg < 157.5) phase = 'Waxing Gibbous';
+  else if (phaseDeg < 202.5) phase = 'Full Moon';
+  else if (phaseDeg < 247.5) phase = 'Waning Gibbous';
+  else if (phaseDeg < 292.5) phase = 'Third Quarter';
+  else phase = 'Waning Crescent';
 
   return {
     latitude: moonLat,
@@ -324,7 +323,7 @@ export async function computeMoonPosition(date?: Date): Promise<MoonPosition> {
     distance,
     phase,
     illumination,
-    phaseAngle: pa,
+    phaseAngle: moonIllum.phase_angle,
   };
 }
 

@@ -202,6 +202,10 @@ export function StarlinkSimulation({ isSimulating, onStarlinkSelect, selectedSat
 
   // Store satellite positions for link updates + tooltip positioning
   const positionsCache = useRef(new Float32Array(TOTAL_SATS * 3));
+  const frameCount = useRef(0);
+
+  // Reset the cursor if the whole simulation unmounts mid-hover
+  useEffect(() => () => { document.body.style.cursor = 'auto'; }, []);
 
   // Sync internal selection with external (e.g. background click clears it)
   useEffect(() => {
@@ -268,20 +272,25 @@ export function StarlinkSimulation({ isSimulating, onStarlinkSelect, selectedSat
     }
     meshRef.current.instanceMatrix.needsUpdate = true;
 
-    // Update tooltip position if hovered/selected
-    if (hovered) {
-      const id = hovered.instanceId;
-      setHovered(prev => prev ? {
-        ...prev,
-        position: [cache[id * 3], cache[id * 3 + 1] + 0.06, cache[id * 3 + 2]],
-      } : null);
-    }
-    if (selected) {
-      const id = selected.instanceId;
-      setSelected(prev => prev ? {
-        ...prev,
-        position: [cache[id * 3], cache[id * 3 + 1] + 0.06, cache[id * 3 + 2]],
-      } : null);
+    frameCount.current++;
+
+    // Update tooltip position if hovered/selected — every few frames is
+    // plenty for a label, and avoids 60 React renders/s while hovering
+    if (frameCount.current % 5 === 0) {
+      if (hovered) {
+        const id = hovered.instanceId;
+        setHovered(prev => prev ? {
+          ...prev,
+          position: [cache[id * 3], cache[id * 3 + 1] + 0.06, cache[id * 3 + 2]],
+        } : null);
+      }
+      if (selected) {
+        const id = selected.instanceId;
+        setSelected(prev => prev ? {
+          ...prev,
+          position: [cache[id * 3], cache[id * 3 + 1] + 0.06, cache[id * 3 + 2]],
+        } : null);
+      }
     }
 
     // Update laser link positions
@@ -300,7 +309,11 @@ export function StarlinkSimulation({ isSimulating, onStarlinkSelect, selectedSat
         arr[off + 5] = cache[b * 3 + 2];
       }
       attr.needsUpdate = true;
-      linksRef.current.computeLineDistances();
+      // computeLineDistances allocates a fresh attribute for 6,336 verts —
+      // the dash pattern at 0.06 opacity doesn't need it every frame
+      if (frameCount.current % 30 === 1) {
+        linksRef.current.computeLineDistances();
+      }
     }
   });
 
@@ -358,6 +371,8 @@ export function StarlinkSimulation({ isSimulating, onStarlinkSelect, selectedSat
         frustumCulled={false}
         onPointerOver={handlePointerOver}
         onPointerOut={handlePointerOut}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
         onClick={handleClick}
       />
 

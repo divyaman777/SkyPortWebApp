@@ -1,0 +1,25 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "presence": {
+      ".read": true,
+      "$sessionId": {
+        ".write": "$sessionId.length >= 8 && $sessionId.length <= 40",
+        ".validate": "newData.hasChildren(['lat', 'lon', 't'])",
+        "lat": {
+          ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90"
+        },
+        "lon": {
+          ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180"
+        },
+        "t": {
+          ".validate": "newData.isNumber() && newData.val() >= (now - 300000) && newData.val() <= (now + 60000)"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    }
+  }
+}

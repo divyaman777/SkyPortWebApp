@@ -8,6 +8,8 @@ import { Satellite, categoryColors, SatelliteCategory } from '@/lib/satellite-da
 import { computeECIPosition, computeOrbitPathECI, computeMoonPositionECI, computeMoonOrbitNormal, getJWSTPositionECI, getGMST } from '@/lib/satellite-engine';
 import { trackMoonClick, trackOrbitZoneClick } from '@/lib/analytics';
 import { registerPresence, subscribePresence, type ActiveUser } from '@/lib/presence';
+import { TIME_SCALE, MOON_SPEED_MULT, getSimDate, getMoonSimDate } from '@/lib/sim-clock';
+import { getObserverLocation } from '@/lib/observer-location';
 import { ArtemisSimulation } from '@/components/simulations/artemis-ii-simulation';
 import { StarlinkSimulation } from '@/components/simulations/starlink-simulation';
 import { type SelectedStarlinkSat } from '@/lib/starlink-data';
@@ -78,29 +80,11 @@ function eciDirToThreeJS(eciX: number, eciY: number, eciZ: number, radius: numbe
   return new THREE.Vector3(eciX * scale, eciZ * scale, -eciY * scale);
 }
 
-// Simulation time: 30x real-time — satellites orbit visibly but feel like real tracking
-// ISS completes one orbit in ~3 min, Earth rotates once per ~48 min
-const TIME_SCALE = 30;
-// Moon revolution multiplier — Moon orbits in ~22 min (real: 27.3 days per Earth rotation × 27.3)
-// Keeps Moon visibly moving without spinning unrealistically fast
-const MOON_SPEED_MULT = 15;
-// Moon tidal-lock rotation rate: one rotation per orbit (rad/s in sim time)
+// Simulation time comes from the shared clock in lib/sim-clock.ts so the
+// UI panels and the 3D scene always agree (see TIME_SCALE / MOON_SPEED_MULT there).
+// Moon tidal-lock rotation rate: one rotation per orbit, in radians per REAL
+// second (applied with the frame delta). One Moon orbit takes ~87 real minutes.
 const MOON_ROT_RATE = (2 * Math.PI) / (27.3 * 24 * 3600 / (TIME_SCALE * MOON_SPEED_MULT));
-const simStartReal = Date.now();
-const simStartDate = new Date();
-
-function getSimDate(): Date {
-  const realElapsed = Date.now() - simStartReal;
-  return new Date(simStartDate.getTime() + realElapsed * TIME_SCALE);
-}
-
-function getMoonSimDate(): Date {
-  const realElapsed = Date.now() - simStartReal;
-  return new Date(simStartDate.getTime() + realElapsed * TIME_SCALE * MOON_SPEED_MULT);
-}
-
-// Earth rotation state
-let earthRotation = 0;
 
 // Procedural ocean texture — subtle deep blue variation over dark base
 function generateOceanTexture(): HTMLCanvasElement {
@@ -185,8 +169,7 @@ function Earth() {
 
   useFrame(() => {
     if (earthRef.current) {
-      earthRotation = getGMST(getSimDate());
-      earthRef.current.rotation.y = earthRotation;
+      earthRef.current.rotation.y = getGMST(getSimDate());
     }
   });
 
@@ -255,6 +238,9 @@ function Earth() {
         />
       </mesh>
 
+      {/* Lat/lon grid — Earth-fixed, so it must rotate with the surface */}
+      <GridLines />
+
       {/* Live user presence dots */}
       <UserPresenceDots />
 
@@ -267,47 +253,35 @@ function Earth() {
 // Observer location marker on Earth
 function ObserverMarker() {
   const markerRef = useRef<THREE.Group>(null);
-  const [observerLat, setObserverLat] = useState(40.7128); // Default: New York
-  const [observerLon, setObserverLon] = useState(-74.0060);
+  // null until geolocation succeeds — no marker shown for unknown locations
+  const [observer, setObserver] = useState<{ lat: number; lon: number } | null>(null);
 
   // Get approximate location from IP address (no permission popup) and register presence
   useEffect(() => {
+    let cancelled = false;
     let cleanup: (() => void) | null = null;
 
-    fetch('https://ipapi.co/json/')
-      .then(r => r.json())
-      .then(data => {
-        if (data.latitude && data.longitude) {
-          setObserverLat(data.latitude);
-          setObserverLon(data.longitude);
-          console.log(`[SKYPORT] Observer location (IP): ${data.latitude.toFixed(2)}, ${data.longitude.toFixed(2)} (${data.city || 'unknown'})`);
-          // Register presence in Firebase for live user density map
-          cleanup = registerPresence(data.latitude, data.longitude);
-        }
-      })
-      .catch(() => {
-        console.log('[SKYPORT] IP geolocation failed, using default (New York)');
-      });
+    getObserverLocation().then(loc => {
+      if (!loc) return;
+      if (cancelled) return; // unmounted while the fetch was in flight
+      setObserver({ lat: loc.lat, lon: loc.lon });
+      // Register presence in Firebase for live user density map
+      cleanup = registerPresence(loc.lat, loc.lon);
+    });
 
-    return () => { if (cleanup) cleanup(); };
+    return () => {
+      cancelled = true;
+      if (cleanup) cleanup();
+    };
   }, []);
 
-  // Position on Earth surface, with normal vector for orientation
-  const position = useMemo(() => {
-    return latLonToVector3(observerLat, observerLon, 2.015);
-  }, [observerLat, observerLon]);
-
-  // Normal direction (from Earth center through the point) for orienting the pin
-  const normal = useMemo(() => {
-    return position.clone().normalize();
-  }, [position]);
-
-  // Quaternion to point the pin outward from Earth surface
-  const quaternion = useMemo(() => {
+  // Position on Earth surface, with quaternion pointing the pin outward
+  const { position, quaternion } = useMemo(() => {
+    const pos = latLonToVector3(observer?.lat ?? 0, observer?.lon ?? 0, 2.015);
     const q = new THREE.Quaternion();
-    q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
-    return q;
-  }, [normal]);
+    q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), pos.clone().normalize());
+    return { position: pos, quaternion: q };
+  }, [observer]);
 
   useFrame((state) => {
     if (markerRef.current) {
@@ -315,6 +289,8 @@ function ObserverMarker() {
       markerRef.current.scale.setScalar(pulse);
     }
   });
+
+  if (!observer) return null;
 
   return (
     <group position={position} quaternion={quaternion}>
@@ -375,6 +351,10 @@ function UserPresenceDots() {
 // Visual compromise: orbit at 10× Earth radius so Moon is visible but clearly distant
 const MOON_RADIUS = 0.55; // 0.273 × 2 (Earth radius) ≈ 0.55
 const MOON_ORBIT_RADIUS = 20; // 10× Earth radius — visible compromise vs real 60×
+
+// JWST sits at Sun-Earth L2, ~4× farther than the Moon. Keep the same visual
+// compression spirit: beyond the Moon's ring, not to scale.
+const JWST_VISUAL_RADIUS = 26;
 
 // Moon component with clickable orbit
 interface MoonProps {
@@ -459,9 +439,11 @@ function Moon({ isSelected, onMoonClick }: MoonProps) {
       )}
       
       <group ref={moonRef} position={[MOON_ORBIT_RADIUS, 0, 0]}>
-        <mesh 
+        <mesh
           ref={moonMeshRef}
-          onClick={onMoonClick}
+          onClick={(e) => { e.stopPropagation(); onMoonClick(); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
           onPointerOver={() => {
             setHovered(true);
             document.body.style.cursor = 'pointer';
@@ -670,7 +652,7 @@ function HubbleModel() {
   );
 }
 
-// GOES-16/18 — boxy bus + single large solar wing + ABI instrument
+// GOES-19/18 — boxy bus + single large solar wing + ABI instrument
 function GOESModel() {
   return (
     <group scale={1.3}>
@@ -1046,7 +1028,7 @@ function SatelliteModel({ satellite, color }: { satellite: Satellite; color: str
   const rid = satellite.registryId;
   if (rid === 'iss') return <ISSModel color={color} />;
   if (rid === 'hubble') return <HubbleModel />;
-  if (rid === 'goes-16' || rid === 'goes-18') return <GOESModel />;
+  if (rid === 'goes-19' || rid === 'goes-18') return <GOESModel />;
   if (rid === 'noaa-19') return <NOAAModel />;
   if (rid === 'landsat-9') return <LandsatModel />;
   if (rid === 'jwst') return <JWSTModel />;
@@ -1078,7 +1060,7 @@ function SatelliteMarker({
 
       if (satellite.special === 'L2_POINT') {
         const eciDir = getJWSTPositionECI(simDate);
-        pos = eciDirToThreeJS(eciDir.eciX, eciDir.eciY, eciDir.eciZ, getOrbitRadius(satellite.altitude));
+        pos = eciDirToThreeJS(eciDir.eciX, eciDir.eciY, eciDir.eciZ, JWST_VISUAL_RADIUS);
       } else {
         const eciPos = computeECIPosition(satellite.noradId, simDate);
         if (eciPos) {
@@ -1094,10 +1076,15 @@ function SatelliteMarker({
 
   const satelliteScale = isStation ? 1.5 : isSelected || hovered ? 1.2 : 1;
 
+  // Reset the cursor if this marker unmounts mid-hover (e.g. selection hides others)
+  useEffect(() => () => { document.body.style.cursor = 'auto'; }, []);
+
   return (
     <group ref={satelliteRef}>
       <group
-        onClick={onClick}
+        onClick={(e) => { e.stopPropagation(); onClick(); }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
         onPointerOver={(e) => {
           setHovered(true);
           onPointerOver(e as unknown as THREE.Event);
@@ -1129,14 +1116,16 @@ function SatelliteMarker({
   );
 }
 
-// Satellite orbit path - rendered at scene root, rotates with Earth
+// Satellite orbit path — computed in the ECI inertial frame at scene root,
+// so it stays fixed while the Earth rotates underneath it
 interface OrbitPathProps {
   satellite: Satellite;
 }
 
 function OrbitPath({ satellite }: OrbitPathProps) {
   const color = categoryColors[satellite.category];
-  const isGeo = satellite.special === 'GEOSTATIONARY' || satellite.altitude > 35000;
+  const isL2 = satellite.special === 'L2_POINT';
+  const isGeo = !isL2 && (satellite.special === 'GEOSTATIONARY' || satellite.altitude > 35000);
 
   // Refresh orbit path every ~5 seconds to stay in sync with accelerated sim time
   const [epoch, setEpoch] = useState(0);
@@ -1147,7 +1136,8 @@ function OrbitPath({ satellite }: OrbitPathProps) {
 
   // Compute orbit path in ECI coordinates at current sim time
   const orbitPoints = useMemo(() => {
-    if (satellite.noradId <= 0) return [];
+    // JWST orbits the Sun-Earth L2 point — no Earth-centered orbit to draw
+    if (isL2 || satellite.noradId <= 0) return [];
 
     // For geostationary sats, draw an equatorial ring in ECI
     if (isGeo) {
@@ -1174,7 +1164,7 @@ function OrbitPath({ satellite }: OrbitPathProps) {
     } catch {
       return [];
     }
-  }, [satellite.noradId, satellite.altitude, isGeo, epoch]);
+  }, [satellite.noradId, satellite.altitude, isGeo, isL2, epoch]);
 
   if (orbitPoints.length < 2) return null;
 
@@ -1295,20 +1285,28 @@ function OrbitZones() {
     },
   ];
   
-  // Generate circle points for each zone
-  const generateCircle = (radius: number) => {
-    const points: THREE.Vector3[] = [];
-    for (let i = 0; i <= 360; i += 2) {
-      const angle = (i * Math.PI) / 180;
-      points.push(new THREE.Vector3(
-        radius * Math.cos(angle),
-        0,
-        radius * Math.sin(angle)
-      ));
-    }
-    return points;
-  };
-  
+  // Generate circle points for each zone — static, computed once
+  const zoneCircles = useMemo(() => {
+    const generateCircle = (radius: number) => {
+      const points: THREE.Vector3[] = [];
+      for (let i = 0; i <= 360; i += 2) {
+        const angle = (i * Math.PI) / 180;
+        points.push(new THREE.Vector3(
+          radius * Math.cos(angle),
+          0,
+          radius * Math.sin(angle)
+        ));
+      }
+      return points;
+    };
+    return {
+      LEO: generateCircle(leoOuterRadius),
+      MEO: generateCircle(meoOuterRadius),
+      GEO: generateCircle(geoRadius),
+    } as Record<string, THREE.Vector3[]>;
+  }, [leoOuterRadius, meoOuterRadius, geoRadius]);
+
+
   const handleZoneClick = (zoneName: string) => {
     const opening = selectedZone !== zoneName;
     setSelectedZone(opening ? zoneName : null);
@@ -1324,7 +1322,7 @@ function OrbitZones() {
           <group key={zone.name}>
             {/* Main orbit ring - horizontal, dashed to distinguish from satellite orbits */}
             <Line
-              points={generateCircle(zone.radius)}
+              points={zoneCircles[zone.name]}
               color={zone.color}
               lineWidth={isSelected ? 2 : 1}
               opacity={isSelected ? 0.45 : 0.2}
@@ -1399,25 +1397,29 @@ function OrbitZones() {
   );
 }
 
-// Grid lines around Earth
+// Lat/lon grid lines — Earth-fixed, rendered inside the rotating Earth group
 function GridLines() {
-  const lines: THREE.Vector3[][] = [];
-  
-  for (let lat = -60; lat <= 60; lat += 30) {
-    const points: THREE.Vector3[] = [];
-    for (let lon = 0; lon <= 360; lon += 10) {
-      points.push(latLonToVector3(lat, lon - 180, 2.005));
-    }
-    lines.push(points);
-  }
+  const lines = useMemo(() => {
+    const result: THREE.Vector3[][] = [];
 
-  for (let lon = 0; lon < 360; lon += 30) {
-    const points: THREE.Vector3[] = [];
-    for (let lat = -90; lat <= 90; lat += 10) {
-      points.push(latLonToVector3(lat, lon - 180, 2.005));
+    for (let lat = -60; lat <= 60; lat += 30) {
+      const points: THREE.Vector3[] = [];
+      for (let lon = 0; lon <= 360; lon += 10) {
+        points.push(latLonToVector3(lat, lon - 180, 2.005));
+      }
+      result.push(points);
     }
-    lines.push(points);
-  }
+
+    for (let lon = 0; lon < 360; lon += 30) {
+      const points: THREE.Vector3[] = [];
+      for (let lat = -90; lat <= 90; lat += 10) {
+        points.push(latLonToVector3(lat, lon - 180, 2.005));
+      }
+      result.push(points);
+    }
+
+    return result;
+  }, []);
 
   return (
     <group>
@@ -1547,7 +1549,6 @@ export function EarthScene({
           isSelected={moonSelected}
           onMoonClick={handleMoonClick}
         />
-        <GridLines />
         <OrbitZones />
         <Satellites
           satellites={satellites}

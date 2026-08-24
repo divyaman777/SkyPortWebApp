@@ -22,9 +22,10 @@ import {
   initializeTLEs,
   computeSatellitePosition,
   computeAllPositions,
-  computeMoonPosition,
 } from '@/lib/satellite-engine';
 import { SATELLITE_REGISTRY } from '@/lib/satellite-registry';
+import { getSimDate } from '@/lib/sim-clock';
+import { getObserverLocation, isSatelliteInView, type ObserverLocation } from '@/lib/observer-location';
 
 export default function Skyport() {
   const [satellites, setSatellites] = useState<Satellite[]>([]);
@@ -42,6 +43,16 @@ export default function Skyport() {
   const [isArtemisPlayback, setIsArtemisPlayback] = useState(false);
   const [selectedStarlink, setSelectedStarlink] = useState<SelectedStarlinkSat | null>(null);
   const engineReady = useRef(false);
+  const observerRef = useRef<ObserverLocation | null>(null);
+
+  // Observer location (IP-based, shared with the 3D scene) for the overhead count
+  useEffect(() => {
+    let cancelled = false;
+    getObserverLocation().then(loc => {
+      if (!cancelled) observerRef.current = loc;
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const isArtemisActive = activeSimulations.includes('artemis-ii');
   const isStarlinkActive = activeSimulations.includes('starlink');
@@ -149,11 +160,12 @@ export default function Skyport() {
         console.error('[SKYPORT] Initialization failed:', err);
         if (!cancelled) {
           setLoadingText('[ERROR] Failed to initialize. Retrying...');
-          // Fallback: still show the app with whatever data we have
+          // Fallback: still show the app, but don't claim live TLE data —
+          // positions are nominal values, not propagated
           setTimeout(() => {
             if (!cancelled) {
               buildSatelliteList().then(sats => {
-                setSatellites(sats);
+                setSatellites(sats.map(s => ({ ...s, isReal: false })));
                 setIsLoading(false);
               });
             }
@@ -168,15 +180,20 @@ export default function Skyport() {
     };
   }, [buildSatelliteList]);
 
-  // Update satellite positions every second using real TLE propagation
+  // Update satellite positions every second using real TLE propagation.
+  // IMPORTANT: propagate at the shared sim time (getSimDate) — the same clock
+  // the 3D scene uses — so the panel data matches the rendered position.
   useEffect(() => {
     if (satellites.length === 0 || !engineReady.current) return;
 
     const interval = setInterval(() => {
+      const simDate = getSimDate();
+      const observer = observerRef.current;
+
       setSatellites(prev => prev.map(sat => {
         if (!sat.isReal || sat.special === 'L2_POINT') return sat;
 
-        const pos = computeSatellitePosition(sat.noradId);
+        const pos = computeSatellitePosition(sat.noradId, simDate);
         if (!pos) return sat;
 
         return {
@@ -185,6 +202,9 @@ export default function Skyport() {
           longitude: pos.longitude,
           altitude: pos.altitude,
           velocity: pos.velocity,
+          inView: observer
+            ? isSatelliteInView(observer.lat, observer.lon, pos.latitude, pos.longitude, pos.altitude)
+            : false,
         };
       }));
     }, 1000);
@@ -537,7 +557,11 @@ export default function Skyport() {
       />
 
       {/* Status Bar */}
-      <StatusBar overheadCount={overheadCount} onSupportClick={() => setShowSupportModal(true)} />
+      <StatusBar
+        overheadCount={overheadCount}
+        onSupportClick={() => setShowSupportModal(true)}
+        onViewListClick={() => setFilterPanelOpen(prev => !prev)}
+      />
 
       {/* Support Modal */}
       {showSupportModal && (

@@ -30,15 +30,21 @@ export function setCache<T>(key: string, data: T, ttlMs: number): void {
     const entry: CacheEntry<T> = { data, timestamp: Date.now(), ttl: ttlMs };
     localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(entry));
   } catch {
-    // Storage full — evict oldest entries
+    // Storage full — evict the entries with the oldest timestamps
     try {
-      const keys: string[] = [];
+      const entries: { key: string; timestamp: number }[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k?.startsWith(CACHE_PREFIX)) keys.push(k);
+        if (!k?.startsWith(CACHE_PREFIX)) continue;
+        try {
+          const parsed = JSON.parse(localStorage.getItem(k) || '');
+          entries.push({ key: k, timestamp: parsed?.timestamp ?? 0 });
+        } catch {
+          entries.push({ key: k, timestamp: 0 }); // unparseable — evict first
+        }
       }
-      // Remove first 5 oldest cache entries
-      keys.slice(0, 5).forEach(k => localStorage.removeItem(k));
+      entries.sort((a, b) => a.timestamp - b.timestamp);
+      entries.slice(0, 5).forEach(e => localStorage.removeItem(e.key));
       // Retry
       const entry: CacheEntry<T> = { data, timestamp: Date.now(), ttl: ttlMs };
       localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(entry));
@@ -59,13 +65,21 @@ export async function cachedFetch<T>(
 ): Promise<T | null> {
   // Check cache first
   const cached = getCached<T>(cacheKey);
-  if (cached) {
+  if (cached !== null) {
     console.log(`[SKYPORT] Cache hit: ${cacheKey}`);
     return cached;
   }
 
+  // On an https page an http:// URL is mixed content — the browser always
+  // blocks it, so don't waste the direct attempt; go straight to the proxy.
+  const isMixedContent =
+    typeof location !== 'undefined' &&
+    location.protocol === 'https:' &&
+    url.startsWith('http:');
+
+  const proxied = `https://corsproxy.io/?url=${encodeURIComponent(url)}`;
   const urls = useCorsProxy
-    ? [url, `https://corsproxy.io/?${encodeURIComponent(url)}`]
+    ? (isMixedContent ? [proxied] : [url, proxied])
     : [url];
 
   for (const fetchUrl of urls) {

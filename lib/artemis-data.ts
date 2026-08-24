@@ -68,12 +68,14 @@ export const MISSION_PHASES: MissionPhase[] = [
     velocity: 10.8,
     color: '#FFB300',
   },
+  // Phase boundaries follow the fetched Horizons trajectory — closest lunar
+  // approach in the data is at hour ~120 (max geocentric distance 413,140 km)
   {
     id: 'outbound',
     name: 'Outbound Transit',
     shortName: 'OUTBOUND',
     startHour: 4,
-    endHour: 96,
+    endHour: 115,
     description: 'Orion coasts toward the Moon on a free-return trajectory. Crew conducts deep-space operations and system tests.',
     velocity: 3.5,
     color: ARTEMIS_COLOR,
@@ -82,8 +84,8 @@ export const MISSION_PHASES: MissionPhase[] = [
     id: 'flyby',
     name: 'Lunar Flyby',
     shortName: 'FLYBY',
-    startHour: 96,
-    endHour: 106,
+    startHour: 115,
+    endHour: 126,
     description: 'Orion swings behind the far side of the Moon at closest approach of 6,513 km — the farthest humans have traveled from Earth since Apollo 17.',
     velocity: 1.2,
     color: '#FFFFFF',
@@ -92,7 +94,7 @@ export const MISSION_PHASES: MissionPhase[] = [
     id: 'return',
     name: 'Return Transit',
     shortName: 'RETURN',
-    startHour: 106,
+    startHour: 126,
     endHour: 220,
     description: 'Free-return trajectory brings Orion back toward Earth. Crew prepares for re-entry.',
     velocity: 4.0,
@@ -183,13 +185,13 @@ export function generateTrajectory(numPoints: number = 600): TrajectoryPoint[] {
     });
   }
 
-  // ── Phase 2: Outbound transit (hours 4–96) ────────────────
+  // ── Phase 2: Outbound transit (hours 4–115) ───────────────
   // Smooth Bezier-like curve from departure to near-Moon, upper path
   const outboundPoints = Math.floor(numPoints * 0.35);
   const departEnd = points[points.length - 1];
   for (let i = 1; i <= outboundPoints; i++) {
     const t = i / outboundPoints; // 0→1
-    const hour = 4 + t * 92; // hours 4–96
+    const hour = 4 + t * 111; // hours 4–115
 
     // Cubic interpolation with control points for gentle arc
     const cp1x = departEnd.x + (moonX - departEnd.x) * 0.3;
@@ -207,12 +209,12 @@ export function generateTrajectory(numPoints: number = 600): TrajectoryPoint[] {
     points.push({ x, y: 0, z, hour });
   }
 
-  // ── Phase 3: Lunar flyby — semicircle around far side (hours 96–106) ──
+  // ── Phase 3: Lunar flyby — semicircle around far side (hours 115–126) ──
   // Arc from +z side → far side → -z side (around x > moonX)
   const flybyPoints = Math.floor(numPoints * 0.15);
   for (let i = 1; i <= flybyPoints; i++) {
     const t = i / flybyPoints; // 0→1
-    const hour = 96 + t * 10; // hours 96–106
+    const hour = 115 + t * 11; // hours 115–126
 
     // Semicircular arc: angle from +90° to -90° (far side of Moon)
     const angle = (Math.PI / 2) - t * Math.PI; // π/2 → -π/2
@@ -222,7 +224,7 @@ export function generateTrajectory(numPoints: number = 600): TrajectoryPoint[] {
     points.push({ x, y: 0, z, hour });
   }
 
-  // ── Phase 4: Return transit (hours 106–220) ───────────────
+  // ── Phase 4: Return transit (hours 126–220) ───────────────
   // Lower path (negative z) from near-Moon back to Earth
   const returnPoints = Math.floor(numPoints * 0.35);
   const returnStart = points[points.length - 1];
@@ -230,7 +232,7 @@ export function generateTrajectory(numPoints: number = 600): TrajectoryPoint[] {
   const returnEndZ = -pathSpread * 0.5;
   for (let i = 1; i <= returnPoints; i++) {
     const t = i / returnPoints; // 0→1
-    const hour = 106 + t * 114; // hours 106–220
+    const hour = 126 + t * 94; // hours 126–220
 
     // Cubic Bezier return path (mirror of outbound, lower)
     const cp1x = returnStart.x - (returnStart.x - returnEndX) * 0.3;
@@ -284,15 +286,15 @@ export function getDistanceFromEarth(elapsedHours: number): number {
 
   // Outbound: 5400 → ~384400
   if (phase.id === 'outbound') {
-    const pt = (elapsedHours - 4) / 92;
+    const pt = (elapsedHours - 4) / 111;
     return 5400 + pt * (384400 - 5400);
   }
   // Flyby: near Moon
-  if (phase.id === 'flyby') return 384400 - PERILUNE_KM + Math.abs(elapsedHours - 101) * 1000;
+  if (phase.id === 'flyby') return 384400 - PERILUNE_KM + Math.abs(elapsedHours - 120.5) * 1000;
 
   // Return: ~384400 → 5400
   if (phase.id === 'return') {
-    const pt = (elapsedHours - 106) / 114;
+    const pt = (elapsedHours - 126) / 94;
     return 384400 - pt * (384400 - 5400);
   }
   // Reentry: 5400 → 0

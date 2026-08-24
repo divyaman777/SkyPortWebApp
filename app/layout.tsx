@@ -109,7 +109,6 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
   other: {
     'google-site-verification': 'googleb898c58da5a91152',
-    'msvalidate.01': 'REPLACE_WITH_BING_VERIFICATION_CODE',
   },
 }
 
@@ -246,7 +245,7 @@ export default function RootLayout({
               <li><strong>JWST (James Webb Space Telescope)</strong> — L2 Lagrange point, 1.5 million km from Earth</li>
               <li><strong>Starlink Constellation</strong> — 1,584 satellites, 72 orbital planes, 550 km altitude, inter-satellite laser links</li>
               <li><strong>Tiangong Space Station</strong> — NORAD 48274, LEO 390 km</li>
-              <li><strong>GOES-16 &amp; GOES-18</strong> — Geostationary weather satellites, live imagery</li>
+              <li><strong>GOES-19 &amp; GOES-18</strong> — Geostationary weather satellites, live imagery</li>
               <li><strong>NOAA-19</strong> — Polar-orbiting weather satellite, LEO 870 km</li>
               <li><strong>Landsat 9</strong> — Earth observation, LEO 705 km</li>
               <li><strong>AO-91 (RadFxSat)</strong> — Amateur radio CubeSat, LEO 450 km</li>

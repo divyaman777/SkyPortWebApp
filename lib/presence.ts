@@ -50,21 +50,21 @@ export function registerPresence(lat: number, lon: number): () => void {
 
     const data = { lat, lon, t: Date.now() };
 
-    // Write initial presence
-    set(userRef, data);
+    // Write initial presence (rejections are non-fatal — e.g. security rules)
+    set(userRef, data).catch(err => console.warn('[SKYPORT] Presence write failed:', err));
 
     // Auto-remove when user disconnects (closes tab, loses connection)
-    onDisconnect(userRef).remove();
+    onDisconnect(userRef).remove().catch(() => {});
 
     // Heartbeat every 60s to confirm still active
     const heartbeat = setInterval(() => {
-      set(userRef, { lat, lon, t: Date.now() });
+      set(userRef, { lat, lon, t: Date.now() }).catch(() => {});
     }, 60000);
 
     // Return cleanup function
     return () => {
       clearInterval(heartbeat);
-      set(userRef, null); // Remove on manual cleanup
+      set(userRef, null).catch(() => {}); // Remove on manual cleanup
     };
   } catch (err) {
     console.warn('[SKYPORT] Presence registration failed:', err);

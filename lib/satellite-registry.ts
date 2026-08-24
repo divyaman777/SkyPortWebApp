@@ -69,22 +69,23 @@ export const SATELLITE_REGISTRY: SatelliteRegistryEntry[] = [
     ],
   },
   {
-    id: 'goes-16',
-    noradId: 41866,
-    name: 'GOES-16',
+    // GOES-19 replaced GOES-16 as GOES-East in April 2025
+    id: 'goes-19',
+    noradId: 60133,
+    name: 'GOES-19',
     category: 'WEATHER_SAT',
     type: 'Weather Satellite (Geostationary)',
     nominalAltitude: 35786,
-    launchDate: '2016-11-19',
+    launchDate: '2024-06-25',
     country: 'USA',
     special: 'GEOSTATIONARY',
     signals: [
       { type: 'BROADCAST', frequency: '1694.1 MHz', mode: 'HRIT/LRIT', status: 'continuous' },
     ],
     dataFeeds: [
-      { id: 'goes16-geocolor', label: 'Full Disk GeoColor', type: 'image', url: 'https://cdn.star.nesdis.noaa.gov/GOES16/ABI/FD/GEOCOLOR/latest.jpg', refreshInterval: 600000, cacheDuration: 600000 },
-      { id: 'goes16-ir', label: 'Infrared Band 13', type: 'image', url: 'https://cdn.star.nesdis.noaa.gov/GOES16/ABI/FD/13/latest.jpg', refreshInterval: 600000, cacheDuration: 600000 },
-      { id: 'goes16-wv', label: 'Water Vapor Band 09', type: 'image', url: 'https://cdn.star.nesdis.noaa.gov/GOES16/ABI/FD/09/latest.jpg', refreshInterval: 600000, cacheDuration: 600000 },
+      { id: 'goes19-geocolor', label: 'Full Disk GeoColor', type: 'image', url: 'https://cdn.star.nesdis.noaa.gov/GOES19/ABI/FD/GEOCOLOR/latest.jpg', refreshInterval: 600000, cacheDuration: 600000 },
+      { id: 'goes19-ir', label: 'Infrared Band 13', type: 'image', url: 'https://cdn.star.nesdis.noaa.gov/GOES19/ABI/FD/13/latest.jpg', refreshInterval: 600000, cacheDuration: 600000 },
+      { id: 'goes19-wv', label: 'Water Vapor Band 09', type: 'image', url: 'https://cdn.star.nesdis.noaa.gov/GOES19/ABI/FD/09/latest.jpg', refreshInterval: 600000, cacheDuration: 600000 },
     ],
   },
   {
@@ -164,11 +165,11 @@ export const SATELLITE_REGISTRY: SatelliteRegistryEntry[] = [
     category: 'AMATEUR_RADIO',
     type: 'Amateur Radio CubeSat',
     nominalAltitude: 550,
-    launchDate: '2018-01-12',
+    launchDate: '2017-11-18',
     country: 'USA',
     signals: [
-      { type: 'AMATEUR_RADIO', frequency: '145.960 MHz', mode: 'FM transponder', status: 'active' },
-      { type: 'TELEMETRY', frequency: '435.250 MHz', mode: 'DUV telemetry', status: 'active' },
+      { type: 'AMATEUR_RADIO', frequency: '145.960 MHz', mode: 'FM transponder', status: 'inactive (battery failure)' },
+      { type: 'TELEMETRY', frequency: '435.250 MHz', mode: 'DUV telemetry', status: 'inactive' },
     ],
     dataFeeds: [
       { id: 'ao91-telemetry', label: 'SatNOGS Telemetry', type: 'api_json', url: 'https://db.satnogs.org/api/telemetry/?satellite__norad_cat_id=43017&format=json', refreshInterval: 0, corsProxy: true, cacheDuration: 300000 },

@@ -19,20 +19,22 @@ function AnimatedNumber({ value, decimals = 1 }: { value: number; decimals?: num
     const duration = 500;
     const startTime = Date.now();
     const startValue = displayValue;
+    let rafId: number;
 
     const animate = () => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
-      
+
       setDisplayValue(startValue + (value - startValue) * eased);
-      
+
       if (progress < 1) {
-        requestAnimationFrame(animate);
+        rafId = requestAnimationFrame(animate);
       }
     };
 
-    requestAnimationFrame(animate);
+    rafId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(rafId);
   }, [value]);
 
   return <span className="count-up">{displayValue.toFixed(decimals)}</span>;
@@ -162,7 +164,9 @@ function TextDataStream({ satellite }: { satellite: Satellite }) {
 // Audio stream component with visualizer and playable radio signal
 function AudioStream({ satellite }: { satellite: Satellite }) {
   const [bars, setBars] = useState<number[]>(Array(20).fill(0));
-  const [frequency, setFrequency] = useState('145.800');
+  // Show this satellite's actual downlink frequency, not a random scan
+  const frequency =
+    satellite.signals?.find(s => s.frequency)?.frequency?.replace(/\s*MHz$/i, '') || '145.800';
   const [isPlaying, setIsPlaying] = useState(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const oscillatorsRef = useRef<OscillatorNode[]>([]);
@@ -175,15 +179,8 @@ function AudioStream({ satellite }: { satellite: Satellite }) {
       setBars(prev => prev.map(() => Math.random() * 100));
     }, 100);
 
-    // Simulate frequency scanning
-    const freqInterval = setInterval(() => {
-      const freqs = ['145.800', '437.550', '435.900', '146.520', '432.100'];
-      setFrequency(freqs[Math.floor(Math.random() * freqs.length)]);
-    }, 3000);
-
     return () => {
       clearInterval(interval);
-      clearInterval(freqInterval);
       stopAudio();
     };
   }, []);
@@ -464,10 +461,13 @@ function ISSDataFeed({ satellite }: { satellite: Satellite }) {
       3600000,
       true
     ).then(data => {
+      // cachedFetch resolves null on failure (it never rejects)
       if (data?.people) {
         setCrew(data.people.filter(p => p.craft === 'ISS'));
+      } else {
+        setCrewError(true);
       }
-    }).catch(() => setCrewError(true));
+    });
   }, []);
 
   const tryNextStream = () => {
@@ -580,7 +580,7 @@ function GOESDataFeed({ satellite }: { satellite: Satellite }) {
   const [imageError, setImageError] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const satNum = satellite.name.includes('16') ? 'GOES16' : 'GOES18';
+  const satNum = satellite.name.includes('19') ? 'GOES19' : 'GOES18';
   const bandUrls: Record<string, string> = {
     GEOCOLOR: `https://cdn.star.nesdis.noaa.gov/${satNum}/ABI/FD/GEOCOLOR/latest.jpg`,
     IR: `https://cdn.star.nesdis.noaa.gov/${satNum}/ABI/FD/13/latest.jpg`,
@@ -911,7 +911,7 @@ function ConnectButton({ satellite }: { satellite: Satellite }) {
     switch (id) {
       case 'iss':
         return <ISSDataFeed satellite={satellite} />;
-      case 'goes-16':
+      case 'goes-19':
       case 'goes-18':
         return <GOESDataFeed satellite={satellite} />;
       case 'hubble':

@@ -150,18 +150,24 @@ interface OrionProps {
   elapsedHours: number;
   isSelected: boolean;
   onClick?: () => void;
+  status: 'LIVE' | 'REPLAY' | 'COMPLETE';
 }
 
-function OrionSpacecraft({ position, elapsedHours, isSelected, onClick }: OrionProps) {
+function OrionSpacecraft({ position, elapsedHours, isSelected, onClick, status }: OrionProps) {
   const [hovered, setHovered] = useState(false);
   const phase = getCurrentPhase(elapsedHours);
   const velocity = getVelocity(elapsedHours);
   const met = formatMET(elapsedHours);
 
+  // Reset the cursor if we unmount mid-hover (e.g. simulation toggled off)
+  useEffect(() => () => { document.body.style.cursor = 'auto'; }, []);
+
   return (
     <group position={position}>
       <group
         onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
         onPointerOver={() => { setHovered(true); document.body.style.cursor = 'pointer'; }}
         onPointerOut={() => { setHovered(false); document.body.style.cursor = 'auto'; }}
         scale={hovered || isSelected ? 1.15 : 1}
@@ -189,8 +195,8 @@ function OrionSpacecraft({ position, elapsedHours, isSelected, onClick }: OrionP
           <div className="bg-[rgba(0,0,0,0.9)] border border-[rgba(68,138,255,0.5)] px-2.5 py-2 rounded text-[10px] whitespace-nowrap font-mono">
             <div className="flex items-center gap-1.5 mb-1">
               <span className="text-[#448AFF] font-bold">ORION MPCV</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-[#448AFF] animate-pulse" />
-              <span className="text-[#448AFF] text-[8px]">LIVE</span>
+              <span className={`w-1.5 h-1.5 rounded-full bg-[#448AFF] ${status === 'LIVE' ? 'animate-pulse' : ''}`} />
+              <span className="text-[#448AFF] text-[8px]">{status}</span>
             </div>
             <div className="text-muted-foreground text-[9px]">{phase.shortName} — {phase.name}</div>
             <div className="flex items-center gap-3 mt-0.5">
@@ -324,51 +330,64 @@ export function ArtemisSimulation({ isSimulating, onElapsedUpdate, onOrionClick,
     if (!isSimulating) return;
 
     const now = Date.now();
-    const realDeltaSec = (now - lastUpdateRef.current) / 1000;
-    lastUpdateRef.current = now;
 
     if (isPlayback) {
       // Fast-forward: 1 real second = SIM_HOURS_PER_SECOND mission hours
+      const realDeltaSec = Math.min((now - lastUpdateRef.current) / 1000, 1);
+      lastUpdateRef.current = now;
       setElapsedHours(prev => Math.min(prev + realDeltaSec * SIM_HOURS_PER_SECOND, MISSION_DURATION_HOURS));
     } else {
-      // Real-time: advance at same rate as other satellites (TIME_SCALE = 30)
-      // 1 real second = 30 mission seconds = 30/3600 mission hours
-      const TIME_SCALE = 30; // matches earth-scene.tsx
-      setElapsedHours(prev => Math.min(prev + realDeltaSec * TIME_SCALE / 3600, MISSION_DURATION_HOURS));
+      // Live mode: track the ACTUAL mission clock (1x real time). Computing
+      // from MISSION_START each frame avoids drift and backgrounded-tab jumps.
+      // Only touch state when it moved meaningfully (~2 s) to avoid 60 fps re-renders.
+      lastUpdateRef.current = now;
+      const real = getRealElapsed();
+      setElapsedHours(prev => (Math.abs(real - prev) > 0.0005 ? real : prev));
     }
   });
 
-  // Report elapsed hours to parent
+  // Report elapsed hours to parent — throttled, because the parent stores it
+  // in page-level state and re-renders the whole app tree on every update
+  const lastNotifyRef = useRef(0);
   useEffect(() => {
-    onElapsedUpdate(elapsedHours);
+    const now = Date.now();
+    if (now - lastNotifyRef.current >= 250 || elapsedHours >= MISSION_DURATION_HOURS || elapsedHours === 0) {
+      lastNotifyRef.current = now;
+      onElapsedUpdate(elapsedHours);
+    }
   }, [elapsedHours, onElapsedUpdate]);
-
-  if (!isSimulating) return null;
 
   // Current position
   const currentPos = getPositionAtTime(trajectory, elapsedHours);
   const currentIdx = getTrajectoryIndex(trajectory, elapsedHours);
 
-  // Split trajectory: solid (traveled) + dashed (remaining)
-  const traveledPoints = trajectory.slice(0, currentIdx + 1).map(p => new THREE.Vector3(p.x, p.y, p.z));
-  traveledPoints.push(new THREE.Vector3(currentPos.x, currentPos.y, currentPos.z));
-
-  const remainingPoints = [new THREE.Vector3(currentPos.x, currentPos.y, currentPos.z)];
-  for (let i = currentIdx + 1; i < trajectory.length; i++) {
-    remainingPoints.push(new THREE.Vector3(trajectory[i].x, trajectory[i].y, trajectory[i].z));
-  }
+  // Trajectory as Vector3s — converted once per trajectory, not per frame
+  const trajectoryVecs = useMemo(
+    () => trajectory.map(p => new THREE.Vector3(p.x, p.y, p.z)),
+    [trajectory]
+  );
 
   // Waypoints — find closest approach to Moon at (MOON_ORBIT_RADIUS, 0, 0)
-  const departPoint = trajectory[0];
-  const flybyIdx = trajectory.reduce((best, p, i) => {
-    const dx = p.x - MOON_ORBIT_RADIUS, dy = p.y, dz = p.z;
-    const d = dx * dx + dy * dy + dz * dz;
-    const bestP = trajectory[best];
-    const bd = (bestP.x - MOON_ORBIT_RADIUS) ** 2 + bestP.y ** 2 + bestP.z ** 2;
-    return d < bd ? i : best;
-  }, 0);
-  const flybyPoint = trajectory[flybyIdx];
-  const returnPoint = trajectory[trajectory.length - 1];
+  const { departPoint, flybyPoint, returnPoint } = useMemo(() => {
+    const flybyIdx = trajectory.reduce((best, p, i) => {
+      const d = (p.x - MOON_ORBIT_RADIUS) ** 2 + p.y ** 2 + p.z ** 2;
+      const bestP = trajectory[best];
+      const bd = (bestP.x - MOON_ORBIT_RADIUS) ** 2 + bestP.y ** 2 + bestP.z ** 2;
+      return d < bd ? i : best;
+    }, 0);
+    return {
+      departPoint: trajectory[0],
+      flybyPoint: trajectory[flybyIdx],
+      returnPoint: trajectory[trajectory.length - 1],
+    };
+  }, [trajectory]);
+
+  if (!isSimulating) return null;
+
+  // Split trajectory: solid (traveled) + dashed (remaining)
+  const currentVec = new THREE.Vector3(currentPos.x, currentPos.y, currentPos.z);
+  const traveledPoints = [...trajectoryVecs.slice(0, currentIdx + 1), currentVec];
+  const remainingPoints = [currentVec, ...trajectoryVecs.slice(currentIdx + 1)];
 
   return (
     <group>
@@ -403,6 +422,7 @@ export function ArtemisSimulation({ isSimulating, onElapsedUpdate, onOrionClick,
         elapsedHours={elapsedHours}
         isSelected={!!isOrionSelected}
         onClick={onOrionClick}
+        status={isPlayback ? 'REPLAY' : getRealElapsed() >= MISSION_DURATION_HOURS ? 'COMPLETE' : 'LIVE'}
       />
 
       {/* Ghost Moon */}
