@@ -6,6 +6,8 @@ import { Satellite, categoryColors } from '@/lib/satellite-data';
 import { REGISTRY_MAP, type SatelliteRegistryEntry, type DataFeed } from '@/lib/satellite-registry';
 import { cachedFetch } from '@/lib/api-cache';
 import { trackAudioPlay, trackAudioStop, trackDataFeedConnect, trackVideoStream } from '@/lib/analytics';
+import { computeSatellitePosition, predictNextPass } from '@/lib/satellite-engine';
+import { isSatelliteInView } from '@/lib/observer-location';
 
 interface SatelliteDetailProps {
   satellite: Satellite | null;
@@ -447,6 +449,119 @@ function VideoStream({ satellite }: { satellite: Satellite }) {
 // Known NASA ISS live stream video IDs — NASA rotates these periodically
 const ISS_STREAM_IDS = ['zPH5KtjJFaQ', 'sWasdbDVNvc', 'P9C25Un7xaM', 'xRPjKQtRXR8'];
 
+// Goonhilly Earth Station (Cornwall, UK) — public WebSDR that receives the
+// ISS on 2m. Browser playback, no install: https://vhf-goonhilly.batc.org.uk
+const GOONHILLY = { lat: 50.048, lon: -5.181 };
+const GOONHILLY_WEBSDR = 'https://vhf-goonhilly.batc.org.uk/';
+const ISS_NORAD = 25544;
+
+// Real ISS radio reception via the Goonhilly WebSDR. Uses REAL wall-clock
+// time (not the 30x sim clock) — radio visibility is a real-world event.
+function IssListenLive() {
+  const [inRange, setInRange] = useState(false);
+  const [nextPass, setNextPass] = useState<Date | null>(null);
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    let nextPassCache: Date | null = null;
+
+    const check = () => {
+      const pos = computeSatellitePosition(ISS_NORAD, new Date());
+      if (!pos) return;
+      const visible = isSatelliteInView(GOONHILLY.lat, GOONHILLY.lon, pos.latitude, pos.longitude, pos.altitude);
+      setInRange(visible);
+      if (!visible && (!nextPassCache || nextPassCache.getTime() < Date.now())) {
+        // Predict the next pass over the receiver (24h lookahead, 30s steps)
+        const pass = predictNextPass(ISS_NORAD, GOONHILLY.lat, GOONHILLY.lon, 0, 24);
+        nextPassCache = pass?.start ?? null;
+        setNextPass(nextPassCache);
+      }
+    };
+
+    check();
+    const checkInterval = setInterval(check, 30000);
+    const tickInterval = setInterval(() => setTick(t => t + 1), 1000);
+    return () => { clearInterval(checkInterval); clearInterval(tickInterval); };
+  }, []);
+
+  const countdown = (() => {
+    if (!nextPass) return null;
+    const s = Math.max(0, Math.floor((nextPass.getTime() - Date.now()) / 1000));
+    const h = Math.floor(s / 3600).toString().padStart(2, '0');
+    const m = Math.floor((s % 3600) / 60).toString().padStart(2, '0');
+    const sec = (s % 60).toString().padStart(2, '0');
+    return `${h}:${m}:${sec}`;
+  })();
+
+  return (
+    <div className={`bg-[rgba(0,0,0,0.5)] border rounded p-3 ${inRange ? 'border-[#00FF41]' : 'border-[rgba(0,212,255,0.3)]'}`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2 text-xs font-mono">
+          <span
+            className={`w-2 h-2 rounded-full ${inRange ? 'bg-[#00FF41] animate-pulse' : 'bg-[rgba(0,212,255,0.4)]'}`}
+            style={inRange ? { boxShadow: '0 0 8px #00FF41' } : undefined}
+          />
+          <span className={inRange ? 'text-[#00FF41]' : 'text-[#00D4FF]'}>REAL RADIO — GOONHILLY UK</span>
+        </div>
+        <span className="text-[9px] font-mono text-muted-foreground">WebSDR</span>
+      </div>
+
+      {inRange ? (
+        <>
+          <div className="text-xs font-mono text-[#00FF41] mb-2">
+            ISS IS OVER THE RECEIVER — you can hear it RIGHT NOW
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <a
+              href={`${GOONHILLY_WEBSDR}?tune=145800fm`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => trackDataFeedConnect('ISS WebSDR 145.800', 'live', 'iss')}
+              className="text-center py-2 px-2 text-[10px] font-mono font-bold rounded bg-[rgba(0,255,65,0.15)] border border-[#00FF41] text-[#00FF41] hover:bg-[rgba(0,255,65,0.25)] transition-colors"
+            >
+              ▶ 145.800 VOICE/SSTV
+            </a>
+            <a
+              href={`${GOONHILLY_WEBSDR}?tune=145825fm`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => trackDataFeedConnect('ISS WebSDR 145.825', 'live', 'iss')}
+              className="text-center py-2 px-2 text-[10px] font-mono font-bold rounded bg-[rgba(0,212,255,0.12)] border border-[rgba(0,212,255,0.5)] text-[#00D4FF] hover:bg-[rgba(0,212,255,0.22)] transition-colors"
+            >
+              ▶ 145.825 APRS
+            </a>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="text-[10px] font-mono text-muted-foreground mb-1.5 leading-relaxed">
+            Listen to the real ISS with your own ears — live radio from a public
+            receiver in Cornwall, UK, when the station passes overhead.
+          </div>
+          {countdown && (
+            <div className="flex items-center justify-between text-xs font-mono mb-2">
+              <span className="text-muted-foreground">NEXT RX WINDOW:</span>
+              <span className="text-[#00D4FF] font-vt323 text-base glow-cyan">{countdown}</span>
+            </div>
+          )}
+          <a
+            href={`${GOONHILLY_WEBSDR}?tune=145800fm`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-[10px] font-mono text-[#00D4FF] hover:text-[#4DE8FF] transition-colors"
+          >
+            <ExternalLink className="w-2.5 h-2.5" />
+            OPEN RECEIVER ANYWAY
+          </a>
+        </>
+      )}
+      <div className="text-[8px] text-muted-foreground mt-2">
+        SSTV image broadcasts only during scheduled ARISS events · APRS packets most days
+      </div>
+    </div>
+  );
+}
+
 // ISS Live Stream + Crew
 function ISSDataFeed({ satellite }: { satellite: Satellite }) {
   const [crew, setCrew] = useState<{ name: string; craft: string }[]>([]);
@@ -482,6 +597,9 @@ function ISSDataFeed({ satellite }: { satellite: Satellite }) {
 
   return (
     <div className="space-y-3">
+      {/* Real ISS radio via public WebSDR */}
+      <IssListenLive />
+
       {/* Live video embed */}
       <div className="bg-[rgba(0,0,0,0.5)] border border-[rgba(0,255,65,0.3)] rounded overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2 text-xs text-[#00FF41]">

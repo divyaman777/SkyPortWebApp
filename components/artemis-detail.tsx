@@ -15,6 +15,54 @@ import {
   formatMET,
   getLiveDataSource,
 } from '@/lib/artemis-data';
+import { fetchDsnStatus, formatDataRate, type DsnLink } from '@/lib/dsn';
+
+// ─── Live Deep Space Network status (real data — eyes.nasa.gov/dsn) ──
+
+function DsnLiveCard() {
+  const [links, setLinks] = useState<DsnLink[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => fetchDsnStatus().then(d => {
+      if (!cancelled) { setLinks(d); setLoaded(true); }
+    });
+    load();
+    const interval = setInterval(load, 60000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  return (
+    <div className="glass-panel p-2 rounded">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-foreground font-bold text-[10px]">Deep Space Network</span>
+        <span className="flex items-center gap-1 text-[9px] text-[#00D4FF]">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#00D4FF] animate-pulse" />
+          LIVE
+        </span>
+      </div>
+      <div className="space-y-0.5">
+        {links.slice(0, 4).map((l, i) => (
+          <div key={`${l.dish}-${l.spacecraftCode}-${i}`} className="flex items-center justify-between text-[9px] font-mono">
+            <span className="text-muted-foreground">{l.station} {l.dish}</span>
+            <span className="text-[#00D4FF] truncate mx-1">
+              {l.direction === 'up' ? '↑' : l.direction === 'both' ? '⇅' : '↓'} {l.spacecraft}
+            </span>
+            <span className="text-[#00FF41] flex-shrink-0">{formatDataRate(l.dataRateBps)}</span>
+          </div>
+        ))}
+        {loaded && links.length === 0 && (
+          <div className="text-[9px] text-muted-foreground font-mono">No active links right now</div>
+        )}
+        {!loaded && (
+          <div className="text-[9px] text-muted-foreground font-mono animate-pulse">Querying DSN...</div>
+        )}
+      </div>
+      <p className="text-muted-foreground text-[8px] mt-1">Real antenna activity — Goldstone · Madrid · Canberra</p>
+    </div>
+  );
+}
 
 interface ArtemisDetailProps {
   isOpen: boolean;
@@ -45,7 +93,7 @@ function TelemetryStream({ elapsedHours }: { elapsedHours: number }) {
         `[CM_TELM] CABIN_PRESS: ${(14.5 + Math.random() * 0.4).toFixed(1)} psi | TEMP: ${(21 + Math.random() * 2).toFixed(1)}°C`,
         `[ESM_PWR] SOLAR_A: ${(2.7 + Math.random() * 0.3).toFixed(1)} kW | BUS: ${(28 + Math.random()).toFixed(1)} VDC`,
         `[NAV] VEL: ${vel.toFixed(2)} km/s | RANGE: ${dist > 10000 ? (dist / 1000).toFixed(0) + 'k' : dist.toFixed(0)} km`,
-        `[COMMS] DSN: GOLDSTONE | RSSI: -${(120 + Math.random() * 30).toFixed(0)} dBm | LOCK: OK`,
+        `[COMMS] KA_BAND: 26 GHz | S_BAND: 2.2 GHz | MODE: RECORDED`,
         `[GNC] ATT: NOMINAL | PHASE: ${phase.shortName} | MODE: FREE_DRIFT`,
         `[ECLSS] O2: ${(20.5 + Math.random() * 0.5).toFixed(1)}% | CO2: ${(0.2 + Math.random() * 0.1).toFixed(2)}% | H2O: NOMINAL`,
         `[ESM_PROP] MMH: ${(85 - hours * 0.02).toFixed(0)}% | MON3: ${(87 - hours * 0.02).toFixed(0)}% | AJ10: STBY`,
@@ -379,13 +427,7 @@ export function ArtemisDetail({ isOpen, onClose, elapsedHours, isPlayback, onPla
                   </div>
                   <p className="text-muted-foreground mt-0.5">High-rate data, HD video — 26 GHz</p>
                 </div>
-                <div className="glass-panel p-2 rounded">
-                  <div className="flex items-center justify-between">
-                    <span className="text-foreground font-bold">Deep Space Network</span>
-                    <span className="text-[#00D4FF] text-[9px]">TRACKING</span>
-                  </div>
-                  <p className="text-muted-foreground mt-0.5">Goldstone (CA), Madrid (Spain), Canberra (AUS)</p>
-                </div>
+                <DsnLiveCard />
               </div>
             </div>
 

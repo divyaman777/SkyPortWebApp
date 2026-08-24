@@ -10,6 +10,7 @@ import { trackMoonClick, trackOrbitZoneClick } from '@/lib/analytics';
 import { registerPresence, subscribePresence, type ActiveUser } from '@/lib/presence';
 import { getSimDate, getMoonSimDate, getSimTimeOverride } from '@/lib/sim-clock';
 import { getObserverLocation } from '@/lib/observer-location';
+import { fetchAuroraOval, type AuroraPoint } from '@/lib/space-weather';
 import { ArtemisSimulation } from '@/components/simulations/artemis-ii-simulation';
 import { StarlinkSimulation } from '@/components/simulations/starlink-simulation';
 import { type SelectedStarlinkSat } from '@/lib/starlink-data';
@@ -254,6 +255,9 @@ function Earth() {
       {/* Lat/lon grid — Earth-fixed, so it must rotate with the surface */}
       <GridLines />
 
+      {/* Live aurora ovals — NOAA SWPC OVATION */}
+      <AuroraOverlay />
+
       {/* Live user presence dots */}
       <UserPresenceDots />
 
@@ -327,6 +331,59 @@ function ObserverMarker() {
       </Html>
     </group>
   );
+}
+
+// Live aurora ovals — real NOAA SWPC OVATION model data (refreshed every
+// 10 min), rendered as additive green points hugging the surface. Sits inside
+// the rotating Earth group because the ovals are (geomagnetically) Earth-fixed.
+function AuroraOverlay() {
+  const [auroraPoints, setAuroraPoints] = useState<AuroraPoint[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => fetchAuroraOval().then(d => {
+      if (!cancelled && d) setAuroraPoints(d.points);
+    });
+    load();
+    const interval = setInterval(load, 10 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  const geometry = useMemo(() => {
+    if (!auroraPoints || auroraPoints.length === 0) return null;
+    const positions = new Float32Array(auroraPoints.length * 3);
+    const colors = new Float32Array(auroraPoints.length * 3);
+    auroraPoints.forEach((p, i) => {
+      // OVATION longitudes are 0..359 east; latLonToVector3 wants -180..180
+      const lon = p.lon > 180 ? p.lon - 360 : p.lon;
+      const v = latLonToVector3(p.lat, lon, 2.025);
+      positions[i * 3] = v.x;
+      positions[i * 3 + 1] = v.y;
+      positions[i * 3 + 2] = v.z;
+      // Intensity from probability — green with a faint teal edge
+      const t = Math.min(1, p.prob / 60);
+      colors[i * 3] = 0.05 * t;
+      colors[i * 3 + 1] = 0.55 * t + 0.1;
+      colors[i * 3 + 2] = 0.25 * t;
+    });
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    return geo;
+  }, [auroraPoints]);
+
+  const material = useMemo(() => new THREE.PointsMaterial({
+    size: 0.045,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.55,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    sizeAttenuation: true,
+  }), []);
+
+  if (!geometry) return null;
+  return <points geometry={geometry} material={material} />;
 }
 
 // Live user presence dots — tiny subtle dots showing other active users on the globe

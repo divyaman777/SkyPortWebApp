@@ -1,12 +1,68 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Eye, Rocket } from 'lucide-react';
+import { Eye, Rocket, Calendar } from 'lucide-react';
+import { fetchUpcomingLaunches, formatCountdown } from '@/lib/space-events';
+import { fetchKpIndex, kpColor } from '@/lib/space-weather';
 
 interface StatusBarProps {
   overheadCount: number;
   onSupportClick?: () => void;
   onViewListClick?: () => void;
+  onEventsClick?: () => void;
+}
+
+// Live "NEXT LAUNCH T-xx" chip — Launch Library 2, cached 30 min
+function NextLaunchChip({ onClick }: { onClick?: () => void }) {
+  const [launch, setLaunch] = useState<{ name: string; net: string } | null>(null);
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchUpcomingLaunches().then(list => {
+      const next = list.find(l => new Date(l.net).getTime() > Date.now());
+      if (!cancelled && next) setLaunch({ name: next.name, net: next.net });
+    });
+    const interval = setInterval(() => setTick(t => t + 1), 1000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  if (!launch) return null;
+
+  return (
+    <button
+      onClick={onClick}
+      title={launch.name}
+      className="hidden md:flex items-center gap-1.5 px-2 py-1 glass-panel rounded hover:bg-[rgba(0,255,65,0.1)] transition-colors flex-shrink-0 font-mono"
+    >
+      <Calendar className="w-3 h-3 text-[#00FF41]" />
+      <span className="text-muted-foreground text-[10px]">LAUNCH</span>
+      <span className="text-[#00FF41] font-vt323 text-sm">{formatCountdown(launch.net)}</span>
+    </button>
+  );
+}
+
+// Live geomagnetic Kp index — NOAA SWPC, cached 15 min
+function KpChip() {
+  const [kp, setKp] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchKpIndex().then(r => { if (!cancelled && r) setKp(r.kp); });
+    return () => { cancelled = true; };
+  }, []);
+
+  if (kp === null) return null;
+
+  return (
+    <div
+      className="hidden lg:flex items-center gap-1.5 px-2 py-1 glass-panel rounded flex-shrink-0 font-mono"
+      title={`Planetary Kp index (NOAA SWPC). ${kp >= 5 ? 'Geomagnetic storm — aurora likely!' : kp >= 4 ? 'Active conditions' : 'Quiet conditions'}`}
+    >
+      <span className="text-muted-foreground text-[10px]">KP</span>
+      <span className="font-vt323 text-sm" style={{ color: kpColor(kp) }}>{kp.toFixed(1)}</span>
+    </div>
+  );
 }
 
 function MiniWorldMap() {
@@ -86,7 +142,7 @@ function MiniWorldMap() {
   );
 }
 
-export function StatusBar({ overheadCount, onSupportClick, onViewListClick }: StatusBarProps) {
+export function StatusBar({ overheadCount, onSupportClick, onViewListClick, onEventsClick }: StatusBarProps) {
   const [cursorVisible, setCursorVisible] = useState(true);
 
   useEffect(() => {
@@ -127,8 +183,10 @@ export function StatusBar({ overheadCount, onSupportClick, onViewListClick }: St
           <MiniWorldMap />
         </div>
 
-        {/* Right - Overhead count */}
-        <div className="flex items-center gap-1.5 sm:gap-4 text-xs min-w-0">
+        {/* Right - Live chips + overhead count */}
+        <div className="flex items-center gap-1.5 sm:gap-3 text-xs min-w-0">
+          <NextLaunchChip onClick={onEventsClick} />
+          <KpChip />
           <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
             <span className="text-muted-foreground hidden sm:inline">overhead_now:</span>
             <span className="text-[#00FF41] font-vt323 text-base glow-green">{overheadCount}</span>

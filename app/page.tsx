@@ -10,6 +10,7 @@ import { type SelectedStarlinkSat } from '@/lib/starlink-data';
 
 import { SatelliteTooltip } from '@/components/satellite-tooltip';
 import { StatusBar } from '@/components/status-bar';
+import { SpaceEventsPanel } from '@/components/space-events-panel';
 import { EarthGlobe } from '@/components/earth-globe';
 import { Coffee, Heart, X } from 'lucide-react';
 import {
@@ -34,6 +35,7 @@ export default function Skyport() {
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const [eventsPanelOpen, setEventsPanelOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingText, setLoadingText] = useState('');
   const [bootLog, setBootLog] = useState<string[]>([]);
@@ -590,7 +592,11 @@ export default function Skyport() {
         overheadCount={overheadCount}
         onSupportClick={() => setShowSupportModal(true)}
         onViewListClick={() => setFilterPanelOpen(prev => !prev)}
+        onEventsClick={() => setEventsPanelOpen(prev => !prev)}
       />
+
+      {/* Space Events Panel — launches, EVAs, conjunctions, live DSN */}
+      <SpaceEventsPanel isOpen={eventsPanelOpen} onClose={() => setEventsPanelOpen(false)} />
 
       {/* Support Modal */}
       {showSupportModal && (
