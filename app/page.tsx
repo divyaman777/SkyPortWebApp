@@ -36,6 +36,18 @@ export default function Skyport() {
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingText, setLoadingText] = useState('');
+  const [bootLog, setBootLog] = useState<string[]>([]);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [utcNow, setUtcNow] = useState('');
+
+  // Live UTC clock for the boot screen's telemetry readout
+  useEffect(() => {
+    if (!isLoading) return;
+    const tick = () => setUtcNow(new Date().toISOString().slice(0, 19).replace('T', ' '));
+    tick();
+    const interval = setInterval(tick, 500);
+    return () => clearInterval(interval);
+  }, [isLoading]);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [activeSimulations, setActiveSimulations] = useState<string[]>([]);
   const [simElapsedHours, setSimElapsedHours] = useState(0);
@@ -105,12 +117,12 @@ export default function Skyport() {
   // Initialize satellites with real TLE data
   useEffect(() => {
     const loadingMessages = [
-      'Initializing orbital mechanics...',
-      'Fetching TLE data from CELESTRAK...',
-      'Parsing Two-Line Element sets...',
-      'Propagating satellite positions...',
+      'Establishing uplink to CELESTRAK...',
+      'Acquiring TLE ephemeris sets...',
+      'Propagating SGP4 orbital states...',
+      'Syncing lunar ephemeris...',
       'Rendering globe visualization...',
-      'System ready.'
+      'All systems nominal.'
     ];
 
     let messageIndex = 0;
@@ -125,12 +137,18 @@ export default function Skyport() {
           setLoadingText(currentMessage.slice(0, charIndex + 1));
           charIndex++;
         } else {
+          // Line complete — move it into the boot log, start the next one
+          setBootLog(prev => [...prev, currentMessage]);
+          setLoadingText('');
           messageIndex++;
           charIndex = 0;
           if (messageIndex >= loadingMessages.length) {
             clearInterval(typingInterval);
           }
         }
+        setLoadingProgress(
+          Math.min(100, ((messageIndex + charIndex / currentMessage.length) / loadingMessages.length) * 100)
+        );
       }
     }, 30);
 
@@ -290,176 +308,187 @@ export default function Skyport() {
   // Loading screen
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+      <div className="fixed inset-0 bg-[#05070d] overflow-hidden">
         <div className="star-field" />
         <div className="scanlines" />
-        
-        <div className="flex flex-col items-center z-10 px-4">
-          {/* Animated Earth and Satellite Logo */}
-          <div className="relative w-52 h-52 mb-8">
-            {/* Outer glow pulse */}
-            <div className="absolute inset-0 rounded-full bg-[#00D4FF] opacity-15 blur-xl animate-pulse" />
-            
-            {/* Earth with Americas view */}
-            <div className="absolute inset-6 rounded-full overflow-hidden shadow-[0_0_80px_rgba(0,212,255,0.6)]">
-              <svg viewBox="0 0 100 100" className="w-full h-full">
-                <defs>
-                  {/* Ocean gradient - brighter */}
-                  <radialGradient id="ocean" cx="35%" cy="35%" r="65%">
-                    <stop offset="0%" stopColor="#3498db" />
-                    <stop offset="40%" stopColor="#2980b9" />
-                    <stop offset="100%" stopColor="#1a5276" />
-                  </radialGradient>
-                  {/* Land gradient - brighter green */}
-                  <linearGradient id="land" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#5dbb3f" />
-                    <stop offset="50%" stopColor="#4a9c2d" />
-                    <stop offset="100%" stopColor="#3d7a24" />
-                  </linearGradient>
-                  {/* Atmosphere glow */}
-                  <radialGradient id="atmosphere" cx="50%" cy="50%" r="50%">
-                    <stop offset="80%" stopColor="transparent" />
-                    <stop offset="100%" stopColor="#00D4FF" stopOpacity="0.4" />
-                  </radialGradient>
-                </defs>
-                
-                {/* Ocean base */}
-                <circle cx="50" cy="50" r="50" fill="url(#ocean)" />
-                
-                {/* North America - larger and more visible */}
-                <path 
-                  d="M20,15 L30,12 L40,10 L50,12 L55,18 L52,25 L55,30 L50,35 L45,32 L42,38 L38,42 L32,48 L28,45 L25,48 L22,45 L18,40 L15,35 L12,28 L15,20 Z" 
-                  fill="url(#land)" 
-                  stroke="#2d5016" 
-                  strokeWidth="0.5"
+
+        {/* ── Earth's night limb rising across the bottom of the viewport ── */}
+        <div className="absolute inset-x-0 bottom-0 h-[40vh] overflow-hidden pointer-events-none">
+          <svg
+            className="absolute inset-0 w-full h-full"
+            viewBox="0 0 1600 500"
+            preserveAspectRatio="xMidYMax slice"
+          >
+            <defs>
+              <filter id="lp-blur-s" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="6" />
+              </filter>
+              <filter id="lp-blur-l" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="16" />
+              </filter>
+            </defs>
+
+            {/* Outer atmosphere — soft cyan haze above the limb */}
+            <circle cx="800" cy="2140" r="2018" fill="none" stroke="#0fa0c0" strokeOpacity="0.14" strokeWidth="30" filter="url(#lp-blur-l)" />
+            {/* Tight glow hugging the limb */}
+            <circle cx="800" cy="2140" r="2006" fill="none" stroke="#35d0e0" strokeOpacity="0.32" strokeWidth="10" filter="url(#lp-blur-s)" />
+
+            {/* Planet face — flat near-black (no gradient, no banding) */}
+            <circle cx="800" cy="2140" r="2000" fill="#04070c" />
+
+            {/* Light scattering inside the limb — blurred strokes only, so the
+                falloff is Gaussian-smooth with no hard boundary */}
+            <circle cx="800" cy="2140" r="1990" fill="none" stroke="#1a7f8e" strokeOpacity="0.28" strokeWidth="14" filter="url(#lp-blur-s)" />
+            <circle cx="800" cy="2140" r="1972" fill="none" stroke="#125864" strokeOpacity="0.12" strokeWidth="30" filter="url(#lp-blur-l)" />
+
+            {/* The limb itself — one thin brilliant turquoise line */}
+            <circle cx="800" cy="2140" r="2000" fill="none" stroke="#8FF0EA" strokeOpacity="0.95" strokeWidth="1.6" />
+
+            {/* Graticules — whisper-fine, fading with depth */}
+            {[[1988, 0.14], [1968, 0.1], [1938, 0.07], [1896, 0.05], [1840, 0.035]].map(([r, o], i) => (
+              <circle key={`lp-par-${i}`} cx="800" cy="2140" r={r} fill="none" stroke="#40E0D0" strokeOpacity={o} strokeWidth="1" />
+            ))}
+            {[-24, -18, -12, -6, 0, 6, 12, 18, 24].map(deg => {
+              const a = (deg * Math.PI) / 180;
+              return (
+                <line
+                  key={`lp-mer-${deg}`}
+                  x1={800 + 2000 * Math.sin(a)}
+                  y1={2140 - 2000 * Math.cos(a)}
+                  x2={800 + 1500 * Math.sin(a)}
+                  y2={2140 - 1500 * Math.cos(a)}
+                  stroke="#40E0D0"
+                  strokeOpacity="0.05"
+                  strokeWidth="1"
                 />
-                {/* Greenland */}
-                <path 
-                  d="M42,8 L48,6 L52,8 L50,12 L45,11 Z" 
-                  fill="url(#land)" 
-                  stroke="#2d5016" 
-                  strokeWidth="0.3"
-                />
-                
-                {/* Central America */}
-                <path 
-                  d="M28,48 L32,50 L35,52 L33,55 L30,54 L27,52 Z" 
-                  fill="url(#land)" 
-                  stroke="#2d5016" 
-                  strokeWidth="0.3"
-                />
-                
-                {/* South America - larger and more visible */}
-                <path 
-                  d="M33,56 L40,54 L48,56 L52,62 L50,70 L45,78 L40,85 L35,88 L30,85 L28,78 L30,70 L28,62 Z" 
-                  fill="url(#land)" 
-                  stroke="#2d5016" 
-                  strokeWidth="0.5"
-                />
-                
-                {/* Cloud formations */}
-                <ellipse cx="30" cy="25" rx="12" ry="4" fill="white" opacity="0.3" />
-                <ellipse cx="55" cy="40" rx="8" ry="3" fill="white" opacity="0.25" />
-                <ellipse cx="38" cy="65" rx="10" ry="3" fill="white" opacity="0.2" />
-                
-                {/* Atmosphere overlay */}
-                <circle cx="50" cy="50" r="50" fill="url(#atmosphere)" />
-                
-                {/* Specular highlight - brighter */}
-                <ellipse cx="32" cy="28" rx="18" ry="14" fill="white" opacity="0.12" />
-              </svg>
-            </div>
-            
-            {/* Atmosphere rim light */}
-            <div className="absolute inset-5 rounded-full border-2 border-[#00D4FF] opacity-40 blur-[1px]" />
-            <div className="absolute inset-4 rounded-full border border-[#00D4FF] opacity-20" />
-            
-            {/* Primary orbit ring - glowing */}
-            <div className="absolute inset-1 rounded-full border-2 border-[#00FF41] opacity-50" 
-                 style={{ transform: 'rotateX(70deg)', boxShadow: '0 0 15px rgba(0,255,65,0.4)' }} />
-            
-            {/* Satellite 1 - Main orbiter (slow) */}
-            <div className="absolute inset-1 animate-spin" style={{ animationDuration: '8s', animationTimingFunction: 'linear' }}>
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2">
-                <div className="relative">
-                  {/* Satellite body */}
-                  <div className="w-4 h-3 bg-gradient-to-b from-[#e0e0e0] to-[#a0a0a0] rounded-sm shadow-[0_0_15px_rgba(0,255,65,1)]" />
-                  {/* Solar panels */}
-                  <div className="absolute top-1/2 -translate-y-1/2 -left-4 w-4 h-1.5 bg-gradient-to-r from-[#00D4FF] to-[#0088aa] shadow-[0_0_8px_rgba(0,212,255,0.8)]" />
-                  <div className="absolute top-1/2 -translate-y-1/2 -right-4 w-4 h-1.5 bg-gradient-to-l from-[#00D4FF] to-[#0088aa] shadow-[0_0_8px_rgba(0,212,255,0.8)]" />
-                  {/* Signal beam */}
-                  <div className="absolute -bottom-3 left-1/2 -translate-x-1/2">
-                    <div className="w-1.5 h-1.5 bg-[#00FF41] rounded-full animate-ping shadow-[0_0_10px_#00FF41]" />
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Secondary orbit ring */}
-            <div className="absolute inset-3 rounded-full border border-dashed border-[#00D4FF] opacity-30" 
-                 style={{ transform: 'rotateX(70deg) rotateZ(60deg)' }} />
-            
-            {/* Satellite 2 - Secondary orbiter (different speed/direction) */}
-            <div className="absolute inset-3 animate-spin" style={{ animationDuration: '12s', animationTimingFunction: 'linear', animationDirection: 'reverse' }}>
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1">
-                <div className="w-2 h-1.5 bg-gradient-to-b from-[#d0d0d0] to-[#909090] rounded-sm shadow-[0_0_10px_rgba(255,179,0,0.8)]" />
-              </div>
-            </div>
-            
-            {/* Tertiary orbit ring - outer */}
-            <div className="absolute -inset-2 rounded-full border border-[#FFB300] opacity-20" 
-                 style={{ transform: 'rotateX(70deg) rotateZ(-30deg)' }} />
-            
-            {/* Data stream particles */}
-            <div className="absolute inset-0">
-              <div className="absolute top-[20%] left-[10%] w-1 h-1 bg-[#00FF41] rounded-full animate-ping opacity-60" style={{ animationDelay: '0s', animationDuration: '2s' }} />
-              <div className="absolute top-[70%] right-[15%] w-1 h-1 bg-[#00D4FF] rounded-full animate-ping opacity-60" style={{ animationDelay: '0.5s', animationDuration: '2.5s' }} />
-              <div className="absolute bottom-[30%] left-[20%] w-1 h-1 bg-[#FFB300] rounded-full animate-ping opacity-60" style={{ animationDelay: '1s', animationDuration: '2s' }} />
-            </div>
+              );
+            })}
+
+            {/* Ground stations — tiny beacons on the dark surface */}
+            {[[-17, 1975, '#00FF41'], [-6, 1952, '#40E0D0'], [4, 1980, '#00D4FF'], [14, 1960, '#00FF41'], [21, 1982, '#40E0D0']].map(([deg, r, c], i) => {
+              const a = ((deg as number) * Math.PI) / 180;
+              const x = 800 + (r as number) * Math.sin(a);
+              const y = 2140 - (r as number) * Math.cos(a);
+              return (
+                <g key={`lp-gs-${i}`}>
+                  <circle cx={x} cy={y} r="2" fill={c as string} opacity="0.8" />
+                  <circle cx={x} cy={y} r="6" fill="none" stroke={c as string} strokeOpacity="0.25" strokeWidth="1" />
+                </g>
+              );
+            })}
+          </svg>
+
+          {/* Satellites skimming the limb with signal trails */}
+          <div
+            className="absolute w-1.5 h-1.5 rounded-full bg-[#00FF41]"
+            style={{
+              top: '20%',
+              boxShadow: '0 0 8px #00FF41, 0 0 20px rgba(0,255,65,0.6), -14px 2px 12px rgba(0,255,65,0.25)',
+              animation: 'sat-arc 13s linear infinite',
+            }}
+          />
+          <div
+            className="absolute w-1 h-1 rounded-full bg-[#00D4FF]"
+            style={{
+              top: '26%',
+              boxShadow: '0 0 6px #00D4FF, 0 0 16px rgba(0,212,255,0.5)',
+              animation: 'sat-arc 21s linear infinite',
+              animationDelay: '6s',
+            }}
+          />
+        </div>
+
+        {/* ── HUD corner brackets ── */}
+        <div className="absolute top-4 left-4 w-10 h-10 border-t border-l border-[rgba(64,224,208,0.45)]" />
+        <div className="absolute top-4 right-4 w-10 h-10 border-t border-r border-[rgba(64,224,208,0.45)]" />
+        <div className="absolute bottom-4 left-4 w-10 h-10 border-b border-l border-[rgba(64,224,208,0.45)]" />
+        <div className="absolute bottom-4 right-4 w-10 h-10 border-b border-r border-[rgba(64,224,208,0.45)]" />
+
+        {/* ── Top-left: station ident ── */}
+        <div className="absolute top-7 left-8 font-mono text-[10px] tracking-widest z-10">
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#00FF41] animate-pulse" />
+            <span className="text-[#00FF41]">SKYPORT</span>
+            <span className="text-muted-foreground">// MISSION_CONTROL</span>
           </div>
-          
+          <div className="text-muted-foreground mt-1 opacity-60">GROUND STATION — BOOT SEQUENCE</div>
+        </div>
+
+        {/* ── Top-right: live telemetry readout ── */}
+        <div className="absolute top-7 right-8 font-mono text-[10px] text-right space-y-1 z-10 hidden sm:block">
+          <div>
+            <span className="text-muted-foreground">EPOCH </span>
+            <span className="text-[#00D4FF]">{utcNow} UTC</span>
+          </div>
+          <div>
+            <span className="text-muted-foreground">TLE_SRC </span>
+            <span className="text-[#00FF41]">CELESTRAK</span>
+          </div>
+          <div>
+            <span className="text-muted-foreground">PROPAGATOR </span>
+            <span className="text-foreground">SGP4</span>
+          </div>
+          <div>
+            <span className="text-muted-foreground">DOWNLINK </span>
+            <span className="text-[#FFB300]">ACQUIRING…</span>
+          </div>
+        </div>
+
+        {/* ── Center: wordmark ── */}
+        <div className="absolute inset-x-0 top-[24vh] flex flex-col items-center z-10 px-4">
           {/* Logo Text */}
-          <div className="text-center mb-6">
-            <h1 className="text-5xl font-bold tracking-tight mb-3">
+          <div className="text-center mb-5">
+            <h1 className="text-6xl md:text-7xl font-bold tracking-[0.08em] mb-4">
               <span className="text-[#00FF41] glow-green">SKY</span>
               <span className="text-[#00D4FF] glow-cyan">PORT</span>
             </h1>
-            <p className="text-lg text-foreground mb-1">Every satellite above you.</p>
-            <p className="text-lg text-foreground mb-1">Everything they&apos;re sending down.</p>
-            <p className="text-[#00FF41] text-lg font-bold glow-green">Live.</p>
+            <p className="text-base md:text-lg text-foreground/90 mb-1">Every satellite above you.</p>
+            <p className="text-base md:text-lg text-foreground/90 mb-1.5">Everything they&apos;re sending down.</p>
+            <p className="text-[#00FF41] text-lg font-bold glow-green tracking-widest">LIVE.</p>
           </div>
-          
+
           {/* Subtext */}
-          <p className="text-muted-foreground text-sm text-center max-w-md mb-8">
-            Real-time 3D tracking of every broadcasting satellite in orbit.
-            <br />
-            <span className="text-[#00D4FF]">Weather imagery</span> · <span className="text-[#FFB300]">NASA feeds</span> · <span className="text-[#00FF41]">Radio transmissions</span>
+          <p className="text-muted-foreground text-xs md:text-sm text-center max-w-md font-mono">
+            <span className="text-[#00D4FF]">Weather imagery</span>
+            <span className="mx-2 opacity-50">·</span>
+            <span className="text-[#FFB300]">NASA feeds</span>
+            <span className="mx-2 opacity-50">·</span>
+            <span className="text-[#00FF41]">Radio transmissions</span>
           </p>
 
-          {/* Terminal box */}
-          <div className="glass-panel p-4 rounded max-w-sm w-full">
-            <div className="bg-[rgba(0,0,0,0.5)] p-3 rounded border border-[rgba(0,255,65,0.3)]">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-[#00FF41]">&gt;</span>
-                <span className="text-muted-foreground text-xs">SYSTEM_INIT</span>
-              </div>
-              <div className="text-[#00FF41] text-sm font-mono h-5">
-                {loadingText}
-                <span className="cursor-blink ml-1">▮</span>
-              </div>
-            </div>
+        </div>
 
-            {/* Progress bar */}
-            <div className="h-1 bg-[rgba(0,255,65,0.2)] rounded overflow-hidden mt-3">
-              <div 
-                className="h-full bg-[#00FF41] transition-all duration-300"
-                style={{ 
-                  width: `${Math.min((loadingText.length / 30) * 100, 100)}%`,
-                  boxShadow: '0 0 10px #00FF41'
-                }}
-              />
+        {/* ── Bottom-left: console boot log ── */}
+        <div className="absolute left-8 bottom-12 font-mono text-[11px] z-10 max-w-[70vw]">
+          {bootLog.slice(-4).map((line, i) => (
+            <div key={`boot-${i}-${line}`} className="text-[#00FF41] opacity-40 leading-relaxed">
+              <span className="mr-1.5">✓</span>
+              {line}
             </div>
+          ))}
+          <div className="text-[#00FF41] leading-relaxed" style={{ textShadow: '0 0 8px rgba(0,255,65,0.5)' }}>
+            <span className="mr-1.5">›</span>
+            {loadingText}
+            <span className="cursor-blink ml-0.5">▮</span>
           </div>
+        </div>
+
+        {/* ── Bottom-right: progress readout ── */}
+        <div className="absolute right-8 bottom-12 font-mono text-right z-10">
+          <div className="text-2xl font-vt323 text-[#00FF41] glow-green leading-none">
+            {Math.round(loadingProgress)}<span className="text-sm">%</span>
+          </div>
+          <div className="text-[9px] text-muted-foreground tracking-[0.2em] mt-1">
+            {loadingProgress >= 100 ? 'LINK ESTABLISHED' : 'ACQUIRING SIGNAL'}
+          </div>
+        </div>
+
+        {/* ── Bottom edge: full-width progress bar ── */}
+        <div className="absolute inset-x-0 bottom-0 h-[3px] bg-[rgba(0,255,65,0.12)] z-10">
+          <div
+            className="h-full bg-[#00FF41] transition-all duration-200"
+            style={{ width: `${loadingProgress}%`, boxShadow: '0 0 12px rgba(0,255,65,0.8)' }}
+          />
         </div>
       </div>
     );

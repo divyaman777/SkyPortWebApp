@@ -543,6 +543,16 @@ export function computeMoonOrbitNormal(): { eciX: number; eciY: number; eciZ: nu
   return { eciX: nx / len, eciY: ny / len, eciZ: nz / len };
 }
 
+/** Sun direction as ECI unit vector (geocentric, equatorial J2000).
+ *  Drives the scene's sunlight so the Earth terminator, Moon phase, and
+ *  spacecraft shading are all real for the current sim time. */
+export function getSunDirectionECI(date?: Date): { eciX: number; eciY: number; eciZ: number } {
+  const now = date || new Date();
+  const v = Astronomy.GeoVector(Astronomy.Body.Sun, now, true);
+  const len = Math.sqrt(v.x ** 2 + v.y ** 2 + v.z ** 2);
+  return { eciX: v.x / len, eciY: v.y / len, eciZ: v.z / len };
+}
+
 /** JWST position as anti-sunward ECI unit vector */
 export function getJWSTPositionECI(date?: Date): { eciX: number; eciY: number; eciZ: number } {
   const now = date || new Date();

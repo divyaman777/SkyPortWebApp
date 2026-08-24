@@ -353,3 +353,12 @@
   pointer-events: none;
   z-index: 0;
 }
+
+/* Loading screen: satellite arcing over the Earth horizon */
+@keyframes sat-arc {
+  0%   { left: -5%;  transform: translateY(0);     opacity: 0; }
+  10%  { opacity: 1; }
+  50%  { transform: translateY(-52px); }
+  90%  { opacity: 1; }
+  100% { left: 105%; transform: translateY(0);     opacity: 0; }
+}
