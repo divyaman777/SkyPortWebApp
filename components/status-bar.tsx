@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Eye, Rocket, Calendar } from 'lucide-react';
+import { Eye, Rocket, Calendar, Bell, BellRing } from 'lucide-react';
 import { fetchUpcomingLaunches, formatCountdown } from '@/lib/space-events';
 import { fetchKpIndex, kpColor } from '@/lib/space-weather';
+import { pushSupported, alertsEnabled, enablePassAlerts, disablePassAlerts } from '@/lib/push-alerts';
 
 interface StatusBarProps {
   overheadCount: number;
@@ -38,6 +39,58 @@ function NextLaunchChip({ onClick }: { onClick?: () => void }) {
       <Calendar className="w-3 h-3 text-[#00FF41]" />
       <span className="text-muted-foreground text-[10px]">LAUNCH</span>
       <span className="text-[#00FF41] font-vt323 text-sm">{formatCountdown(launch.net)}</span>
+    </button>
+  );
+}
+
+// "ISS overhead" push alerts toggle — backed by SkyPortService on AWS
+function AlertsChip() {
+  const [supported, setSupported] = useState(false);
+  const [enabled, setEnabled] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setSupported(pushSupported());
+    setEnabled(alertsEnabled());
+  }, []);
+
+  if (!supported) return null;
+
+  const toggle = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (enabled) {
+        await disablePassAlerts();
+        setEnabled(false);
+      } else {
+        const error = await enablePassAlerts();
+        if (error) {
+          window.alert(`[SKYPORT] ${error}`);
+        } else {
+          setEnabled(true);
+        }
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={toggle}
+      disabled={busy}
+      title={enabled ? 'ISS pass alerts ON — click to disable' : 'Get notified ~10 min before the ISS passes over you'}
+      className={`hidden md:flex items-center gap-1.5 px-2 py-1 glass-panel rounded transition-colors flex-shrink-0 font-mono ${
+        enabled ? 'border-[rgba(0,255,65,0.5)]' : 'hover:bg-[rgba(0,255,65,0.1)]'
+      } ${busy ? 'opacity-50' : ''}`}
+    >
+      {enabled
+        ? <BellRing className="w-3 h-3 text-[#00FF41]" />
+        : <Bell className="w-3 h-3 text-muted-foreground" />}
+      <span className={`text-[10px] ${enabled ? 'text-[#00FF41]' : 'text-muted-foreground'}`}>
+        {enabled ? 'ALERTS ON' : 'ALERTS'}
+      </span>
     </button>
   );
 }
@@ -187,6 +240,7 @@ export function StatusBar({ overheadCount, onSupportClick, onViewListClick, onEv
         <div className="flex items-center gap-1.5 sm:gap-3 text-xs min-w-0">
           <NextLaunchChip onClick={onEventsClick} />
           <KpChip />
+          <AlertsChip />
           <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
             <span className="text-muted-foreground hidden sm:inline">overhead_now:</span>
             <span className="text-[#00FF41] font-vt323 text-base glow-green">{overheadCount}</span>
