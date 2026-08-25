@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Rocket, Calendar, AlertTriangle, RadioTower, ExternalLink } from 'lucide-react';
+import { X, Rocket, Calendar, AlertTriangle, RadioTower, ExternalLink, GraduationCap } from 'lucide-react';
 import { fetchUpcomingLaunches, fetchUpcomingEvents, formatCountdown, type SpaceLaunch, type SpaceEvent } from '@/lib/space-events';
 import { fetchTopConjunctions, type Conjunction } from '@/lib/conjunctions';
 import { fetchDsnStatus, formatDataRate, type DsnLink } from '@/lib/dsn';
+import { fetchArissContacts, type ArissContact } from '@/lib/aprs-feed';
 import { trackDataFeedConnect } from '@/lib/analytics';
 
 interface SpaceEventsPanelProps {
@@ -26,6 +27,7 @@ export function SpaceEventsPanel({ isOpen, onClose }: SpaceEventsPanelProps) {
   const [launches, setLaunches] = useState<SpaceLaunch[]>([]);
   const [events, setEvents] = useState<SpaceEvent[]>([]);
   const [conjunctions, setConjunctions] = useState<Conjunction[]>([]);
+  const [arissContacts, setArissContacts] = useState<ArissContact[]>([]);
   const [dsnLinks, setDsnLinks] = useState<DsnLink[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -39,6 +41,7 @@ export function SpaceEventsPanel({ isOpen, onClose }: SpaceEventsPanelProps) {
     fetchUpcomingLaunches().then(d => { if (!cancelled) setLaunches(d); });
     fetchUpcomingEvents().then(d => { if (!cancelled) setEvents(d); });
     fetchTopConjunctions(6).then(d => { if (!cancelled) setConjunctions(d); });
+    fetchArissContacts().then(d => { if (!cancelled) setArissContacts(d); });
     fetchDsnStatus().then(d => { if (!cancelled) { setDsnLinks(d); setLoaded(true); } });
 
     // Keep DSN fresh while open
@@ -135,6 +138,46 @@ export function SpaceEventsPanel({ isOpen, onClose }: SpaceEventsPanelProps) {
                   )}
                 </div>
               ))}
+            </div>
+          </section>
+        )}
+
+        {/* ARISS school contacts — hear astronauts talk live */}
+        {arissContacts.length > 0 && (
+          <section>
+            <h3 className="text-[9px] text-muted-foreground mb-2 tracking-widest flex items-center gap-1.5">
+              <GraduationCap className="w-3 h-3 text-[#00FF41]" /> ASTRONAUT RADIO CONTACTS
+            </h3>
+            <div className="space-y-1.5">
+              {arissContacts.map(c => {
+                const viaMatch = c.school.match(/,\s*(telebridge|direct)\s+via\s+(\S+)\s*$/i);
+                const schoolName = viaMatch ? c.school.slice(0, viaMatch.index) : c.school;
+                return (
+                  <div key={c.ts} className="text-[10px] font-mono glass-panel px-2 py-1.5 rounded border-[rgba(0,255,65,0.2)]">
+                    <div className="text-foreground leading-snug">{schoolName}</div>
+                    <div className="text-[9px] text-muted-foreground mt-0.5">
+                      with <span className="text-[#00D4FF]">{c.astronaut}</span>
+                      {c.elevation > 0 && <span> · {c.elevation}° pass</span>}
+                      {viaMatch && <span> · {viaMatch[1].toLowerCase()} via {viaMatch[2]}</span>}
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-[#FFB300] text-[9px]">145.800 MHz FM</span>
+                      <span className="text-[#00FF41]">{formatCountdown(new Date(c.ts).toISOString())}</span>
+                    </div>
+                    <a
+                      href="https://vhf-goonhilly.batc.org.uk/?tune=145800fm"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[9px] text-[#00D4FF] hover:text-[#4DE8FF] mt-1"
+                    >
+                      <ExternalLink className="w-2.5 h-2.5" /> LISTEN VIA WEBSDR (audible if ISS is over Europe)
+                    </a>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="text-[8px] text-muted-foreground mt-1.5">
+              Students questioning astronauts live on ham radio · schedule: ariss.org
             </div>
           </section>
         )}

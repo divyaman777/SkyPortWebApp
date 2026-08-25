@@ -33,3 +33,24 @@ export function timeAgo(ts: number): string {
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
 }
+
+// ── ARISS school contacts (scraped from ariss.org by the backend) ──
+
+export interface ArissContact {
+  ts: number;        // contact time, epoch ms UTC
+  school: string;    // "School, Location, telebridge via CALL"
+  astronaut: string; // "Name CALLSIGN"
+  elevation: number; // max elevation in degrees, -1 if unknown
+}
+
+export async function fetchArissContacts(): Promise<ArissContact[]> {
+  try {
+    const res = await fetch(`${FEED_URL}?feed=ariss`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.contacts) ? data.contacts : [];
+  } catch (err) {
+    console.warn('[SKYPORT] ARISS contacts feed failed:', err);
+    return [];
+  }
+}
