@@ -8,6 +8,7 @@ import { cachedFetch } from '@/lib/api-cache';
 import { trackAudioPlay, trackAudioStop, trackDataFeedConnect, trackVideoStream } from '@/lib/analytics';
 import { computeSatellitePosition, predictNextPass } from '@/lib/satellite-engine';
 import { isSatelliteInView } from '@/lib/observer-location';
+import { fetchIssPackets, timeAgo, type IssPacket } from '@/lib/aprs-feed';
 
 interface SatelliteDetailProps {
   satellite: Satellite | null;
@@ -455,6 +456,60 @@ const GOONHILLY = { lat: 50.048, lon: -5.181 };
 const GOONHILLY_WEBSDR = 'https://vhf-goonhilly.batc.org.uk/';
 const ISS_NORAD = 25544;
 
+// Real APRS packets relayed through the ISS digipeater (RS0ISS), captured
+// from the APRS-IS backbone by the Skyport backend. These are actual ham
+// radio transmissions that bounced off the space station.
+function IssPacketsFeed() {
+  const [packets, setPackets] = useState<IssPacket[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => fetchIssPackets().then(p => {
+      if (!cancelled) { setPackets(p); setLoaded(true); }
+    });
+    load();
+    const interval = setInterval(load, 45000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  return (
+    <div className="bg-[rgba(0,0,0,0.5)] border border-[rgba(0,255,65,0.3)] rounded p-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2 text-xs font-mono text-[#00FF41]">
+          <span className="status-dot active" />
+          <span>HEARD VIA ISS — 145.825 MHz</span>
+        </div>
+        <span className="text-[9px] font-mono text-muted-foreground">APRS-IS</span>
+      </div>
+
+      {packets.length > 0 ? (
+        <div className="space-y-1.5 max-h-44 overflow-y-auto">
+          {packets.slice(0, 12).map((p, i) => (
+            <div key={`${p.ts}-${i}`} className="text-[10px] font-mono leading-snug">
+              <div className="flex items-center justify-between">
+                <span className="text-[#00D4FF] font-bold">{p.source}</span>
+                <span className="text-muted-foreground text-[9px]">{timeAgo(p.ts)}</span>
+              </div>
+              <div className="text-foreground/80 truncate">{p.info}</div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-[10px] font-mono text-muted-foreground leading-relaxed">
+          {loaded
+            ? 'Digipeater quiet right now — packets appear when hams bounce signals off the station (it is also powered down during EVAs and dockings).'
+            : 'Checking the APRS-IS backbone...'}
+        </div>
+      )}
+
+      <div className="text-[8px] text-muted-foreground mt-2">
+        Real amateur-radio packets digipeated through the ISS, heard by ground stations worldwide
+      </div>
+    </div>
+  );
+}
+
 // Real ISS radio reception via the Goonhilly WebSDR. Uses REAL wall-clock
 // time (not the 30x sim clock) — radio visibility is a real-world event.
 function IssListenLive() {
@@ -599,6 +654,9 @@ function ISSDataFeed({ satellite }: { satellite: Satellite }) {
     <div className="space-y-3">
       {/* Real ISS radio via public WebSDR */}
       <IssListenLive />
+
+      {/* Real packets relayed through the ISS digipeater */}
+      <IssPacketsFeed />
 
       {/* Live video embed */}
       <div className="bg-[rgba(0,0,0,0.5)] border border-[rgba(0,255,65,0.3)] rounded overflow-hidden">
